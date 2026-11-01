@@ -198,3 +198,84 @@ h1 { font-size: 34px; margin: 0; letter-spacing: 2px; }
 .coin.note { background: #e7b7c4; width: 74px; border-radius: 8px; height: 42px; }
 .tray .coin { width: 40px; height: 40px; font-size: 14px; } .tray .coin.c100, .tray .coin.note { width: 54px; height: 32px; }
 .note { color: var(--soft); font-size: 17px; }
+
+/* 第四期：封面、全螢幕故事、冒險地圖 */
+body.in-cine { background: #2b2d45; overscroll-behavior: none; }
+body.in-cine #app { padding: 0; max-width: none; }
+.drift { position: absolute; inset: -20% -40%; pointer-events: none; background: radial-gradient(ellipse 30% 22% at 25% 40%, rgba(232,226,244,.75), transparent 70%), radial-gradient(ellipse 26% 20% at 70% 62%, rgba(214,212,236,.7), transparent 72%), radial-gradient(ellipse 22% 16% at 48% 80%, rgba(238,234,246,.6), transparent 70%); animation: drift 19s ease-in-out infinite alternate; }
+.drift.d2 { animation-duration: 27s; animation-direction: alternate-reverse; opacity: .7; transform: scale(1.3); }
+@keyframes drift { from { translate: -14% 0; } to { translate: 14% -3%; } }
+
+/* 封面 */
+.title { position: relative; min-height: 100vh; min-height: 100dvh; overflow: hidden; background: #55587c center/cover; display: flex; flex-direction: column; align-items: center; justify-content: space-between; padding: 7vh 16px 6vh; text-align: center; }
+.title::after { content: ""; position: absolute; inset: 0; background: linear-gradient(rgba(30,28,60,.52), transparent 36%, transparent 58%, rgba(30,28,60,.68)); pointer-events: none; }
+.title > .title-top, .title > .title-hero, .title > .title-bottom { position: relative; z-index: 2; }
+.kicker { margin: 0 0 2px; color: #ffe39a; font-size: 24px; letter-spacing: 6px; text-shadow: 0 2px 6px rgba(20,20,50,.8); }
+.logo { margin: 0; font-size: 62px; line-height: 1.15; letter-spacing: 6px; color: #fff; -webkit-text-stroke: 1.5px #fff; text-shadow: 0 3px 0 #d6476b, 0 6px 0 #7d2f54, 0 10px 18px rgba(20,20,50,.65); }
+.logo.small { font-size: 34px; letter-spacing: 3px; -webkit-text-stroke: .6px #fff; text-shadow: 0 2px 0 #d6476b, 0 4px 8px rgba(20,20,50,.7); }
+.title-hero { width: min(62vw, 300px); animation: bob 3s ease-in-out infinite; filter: drop-shadow(0 0 26px rgba(255,214,110,.85)); }
+@keyframes bob { 50% { transform: translateY(-14px) rotate(-2deg); } }
+.btn.big { font-size: 30px; padding: 14px 44px; background: var(--berry); border-radius: 22px; animation: pulse 1.8s ease-in-out infinite; box-shadow: 0 6px 20px rgba(214,71,107,.55); }
+@keyframes pulse { 50% { transform: scale(1.05); } }
+.title-note { color: #fff; margin: 12px 0 0; font-size: 19px; text-shadow: 0 1px 5px rgba(20,20,50,.9); }
+.flies { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
+.flies i { position: absolute; width: 8px; height: 8px; border-radius: 50%; background: #ffe48a; box-shadow: 0 0 12px 4px rgba(255,214,90,.8); opacity: 0; animation: fly 4.5s ease-in-out infinite; }
+@keyframes fly { 0%, 100% { opacity: 0; transform: translate(0, 0); } 40% { opacity: 1; } 60% { opacity: .9; transform: translate(16px, -30px); } }
+
+/* 全螢幕故事 */
+.cine { position: relative; min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; overflow: hidden; color: var(--ink); cursor: pointer; }
+.cine-blur { position: fixed; inset: -30px; background: #33365a center/cover; filter: blur(22px) brightness(.55); }
+.cine .scene { position: relative; aspect-ratio: 4/3; width: 100%; max-width: 760px; margin: 0 auto; border-radius: 0 0 26px 26px; box-shadow: 0 10px 30px rgba(10,10,30,.5); flex: none; }
+.cine .scene-who { height: 78%; max-width: 78%; filter: drop-shadow(0 6px 10px rgba(20,20,50,.45)); }
+.rise { animation: rise .45s cubic-bezier(.2,1.3,.5,1); }
+@keyframes rise { from { transform: translate(-50%, 34%); opacity: 0; } to { transform: translateX(-50%); opacity: 1; } }
+.cine .bubble { position: relative; width: calc(100% - 28px); max-width: 700px; margin: -22px auto 0; min-height: 132px; border-radius: 20px; font-size: 24px; line-height: 1.5; box-shadow: 0 8px 22px rgba(10,10,30,.4); border: 3px solid #f3d98f; }
+.cine .bubble.narr { background: #fbf6e6; }
+.ch { opacity: 0; } .ch.on { opacity: 1; }
+.cine-acts { position: relative; display: flex; gap: 12px; align-items: center; justify-content: center; margin: 14px auto 18px; }
+.skip { color: #fff; font-size: 18px; text-decoration: underline; padding: 10px; }
+
+/* 冒險地圖 */
+.map-bg { position: fixed; inset: 0; z-index: -1; background: #4a4d70; }
+.map-bg .m1, .map-bg .m2 { position: absolute; inset: 0; background-size: cover; background-position: center; }
+.map-bg .shade { position: absolute; inset: 0; background: linear-gradient(rgba(40,38,75,.4), rgba(40,38,75,.2) 40%, rgba(40,38,75,.45)); }
+.map-head { position: sticky; top: 0; z-index: 5; margin: -14px -16px 8px; padding: 12px 16px 10px; background: linear-gradient(rgba(36,34,70,.85), rgba(36,34,70,.55) 75%, transparent); }
+.map-title { display: flex; justify-content: space-between; align-items: center; }
+.map-head .hero-say { margin-top: 6px; border: 2px solid #f3d98f; }
+.trail { position: relative; margin-bottom: 104px; }
+.trail > svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.stop { position: absolute; display: flex; align-items: center; gap: 0; width: 72%; padding: 0; text-align: left; transition: transform .12s; }
+.stop.left { left: 0; } .stop.right { right: 0; flex-direction: row-reverse; text-align: right; }
+.stop:active { transform: scale(.97); }
+.medal { position: relative; width: 116px; height: 116px; flex: none; border-radius: 50%; background: #d7d3c6 center/cover; border: 5px solid #fff6e3; box-shadow: 0 6px 16px rgba(20,20,50,.55); overflow: hidden; z-index: 2; display: block; }
+.medal .fog { border-radius: 50%; }
+.medal-who { position: absolute; left: 50%; bottom: -2px; transform: translateX(-50%); height: 84px; width: 92px; object-fit: contain; }
+.stop .plate { position: relative; flex: 1; min-width: 0; background: rgba(255,253,247,.95); border-radius: 14px; padding: 6px 10px 6px 18px; margin-left: -12px; box-shadow: 0 4px 12px rgba(20,20,50,.4); display: block; }
+.stop.right .plate { margin-left: 0; margin-right: -12px; padding: 6px 18px 6px 10px; }
+.plate b { display: block; font-size: 21px; line-height: 1.25; }
+.plate small { display: block; font-size: 15px; color: var(--soft); line-height: 1.25; }
+.plate .lvl { margin-top: 2px; }
+.badge { position: absolute; right: 8px; top: 6px; width: 26px; height: 26px; border-radius: 50%; background: var(--good); color: #fff; display: grid; place-items: center; font-size: 16px; font-family: system-ui, sans-serif; z-index: 3; }
+.stop.now .medal { border-color: #ffd65a; animation: ring 1.6s ease-out infinite; }
+@keyframes ring { 0% { box-shadow: 0 0 0 0 rgba(255,214,90,.9); } 100% { box-shadow: 0 0 0 20px rgba(255,214,90,0); } }
+.guide { position: absolute; width: 58px; height: 58px; object-fit: contain; top: -14px; z-index: 4; animation: bob 2s ease-in-out infinite; filter: drop-shadow(0 0 8px rgba(255,214,90,.9)); }
+.stop.left .guide { left: 74px; } .stop.right .guide { right: 74px; }
+.stop.cave[disabled] .medal { filter: grayscale(.5) brightness(.75); }
+.stop.cave[disabled] { cursor: default; }
+.lock { position: absolute; inset: 0; display: grid; place-items: center; color: #fff; font-size: 44px; z-index: 3; }
+.dock { position: fixed; left: 50%; bottom: 0; transform: translateX(-50%); width: 100%; max-width: 720px; z-index: 6; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 10px 12px calc(10px + env(safe-area-inset-bottom)); background: linear-gradient(transparent, rgba(36,34,70,.9) 30%); }
+.dock button { background: rgba(255,253,247,.97); border-radius: 16px; border-bottom: 4px solid #d8c9a6; padding: 5px 4px; font-size: 18px; line-height: 1.2; min-height: 68px; }
+.dock button b { display: block; font-size: 21px; font-weight: 400; line-height: 1.15; }
+.dock small { display: block; font-size: 13px; color: var(--soft); }
+.dock .hot { background: var(--sun); color: #fff; border-bottom-color: #c47f12; animation: pulse 2s ease-in-out infinite; }
+.dock .hot small { color: #fff; }
+@media (prefers-reduced-motion: reduce) { .drift, .title-hero, .btn.big, .flies i, .guide, .stop.now .medal, .dock .hot, .rise { animation: none; } .flies i { opacity: 1; } .rise { transform: translateX(-50%); } }
+@media (min-width: 720px) { .cine .scene { aspect-ratio: 16/9; } .medal { width: 124px; height: 124px; } }
+
+.map-bg { z-index: 0; }
+.map-head, .trail { z-index: 1; }
+.map-head { z-index: 5; }
+.cine { justify-content: center; }
+.cine .scene { border-radius: 26px; width: calc(100% - 16px); }
+.guide { top: -20px; }
+.stop.left .guide { left: 66px; } .stop.right .guide { right: 66px; }

@@ -148,20 +148,42 @@ function endRound() {
 }
 
 /* ---------- 故事畫面 ---------- */
-function comic(bg, lines, then) {
-  let i = 0;
+function typeInto(el, text) {
+  // 一個字一個字出現；再按一次就全部顯示
+  const reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  el.innerHTML = [...text].map(c => `<span class="${/\d/.test(c) ? 'num ' : ''}ch">${esc(c)}</span>`).join('');
+  const chars = [...el.children];
+  let i = 0, timer = null;
+  const finish = () => { clearInterval(timer); timer = null; chars.forEach(c => c.classList.add('on')); };
+  if (reduce) finish(); else timer = setInterval(() => { if (i >= chars.length) return finish(); chars[i++].classList.add('on'); }, 42);
+  return { typing: () => timer !== null, finish };
+}
+function comic(bg, lines, then, opts) {
+  let i = 0, typer = null;
+  function next() {
+    if (typer && typer.typing()) return typer.finish();
+    try { speechSynthesis.cancel(); } catch (e) {}
+    if (++i < lines.length) show(); else leave();
+  }
+  function leave() { document.body.classList.remove('in-cine'); then(); }
   function show() {
     const [who, name, text, lineBg] = lines[i];
-    $app.innerHTML = `<div class="comic">
-      <div class="scene" style="${bgStyle(lineBg && HAS[lineBg] ? lineBg : bg)}">${who ? artImg(who, 'scene-who pop') : ''}</div>
-      <div class="bubble ${who ? '' : 'narr'} pop">${name ? `<b>${name}</b>` : ''}<p>${nums(text)}</p></div>
-      <div class="actions"><button class="icon-btn" id="say" aria-label="唸出來">🔊</button><button class="btn" id="go">${i + 1 < lines.length ? '繼續' : '好！'}</button></div>
-    </div>`;
-    document.getElementById('say').onclick = () => speak(text);
-    document.getElementById('go').onclick = () => {
-      try { speechSynthesis.cancel(); } catch (e) {}
-      if (++i < lines.length) show(); else then();
-    };
+    const b = lineBg && HAS[lineBg] ? lineBg : bg, misty = b === 'town_fog' || b === 'fog_cave';
+    document.body.classList.add('in-cine');
+    $app.innerHTML = `<div class="cine" id="cine">
+      <div class="cine-blur" style="${bgStyle(b)}"></div>
+      <div class="scene" style="${bgStyle(b)}">${misty ? '<div class="drift d1"></div><div class="drift d2"></div>' : ''}${who ? artImg(who, 'scene-who rise') : ''}</div>
+      <div class="bubble ${who ? '' : 'narr'}">${name ? `<b>${name}</b>` : ''}<p id="line"></p></div>
+      <div class="cine-acts">
+        <button class="icon-btn" id="say" aria-label="唸出來">🔊</button>
+        <button class="btn" id="go">${i + 1 < lines.length ? '繼續' : (opts && opts.last) || '好！'}</button>
+        ${opts && opts.skip ? '<button class="skip" id="skip">跳過</button>' : ''}
+      </div></div>`;
+    typer = typeInto(document.getElementById('line'), text);
+    document.getElementById('say').onclick = e => { e.stopPropagation(); speak(text); };
+    document.getElementById('go').onclick = e => { e.stopPropagation(); next(); };
+    if (opts && opts.skip) document.getElementById('skip').onclick = e => { e.stopPropagation(); leave(); };
+    document.getElementById('cine').onclick = next;
   }
   show();
 }
@@ -726,34 +748,66 @@ function viewShop(q) {
 const VIEWS = { line: viewLine, block: viewBlock, frog: viewFrog, scale: viewScale, candy: viewCandy, clock: viewClock, train: viewTrain, shop: viewShop };
 
 /* ---------- 首頁 ---------- */
+let titleShown = false;
+function viewTitle() {
+  titleShown = true;
+  const flies = Array.from({ length: 12 }, (_, i) => `<i style="left:${8 + (i * 37) % 86}%;top:${22 + (i * 53) % 62}%;animation-delay:${(i * .6) % 4}s"></i>`).join('');
+  document.body.classList.add('in-cine');
+  $app.innerHTML = `<div class="title" style="${bgStyle(S.bossDone ? 'town_clear' : 'town_fog')}">
+    ${S.bossDone ? '' : '<div class="drift d1"></div><div class="drift d2"></div>'}
+    <div class="flies">${flies}</div>
+    <div class="title-top"><p class="kicker">大霧救援行動</p><h1 class="logo">數感小鎮</h1></div>
+    ${artImg('liang_cheer', 'title-hero')}
+    <div class="title-bottom">
+      <button class="btn big" id="start">${S.opened ? '繼續冒險' : '開始冒險'}</button>
+      <p class="title-note">${S.opened ? `隊長，你已經收集 ${S.stars} 顆星星的光` : '小鎮需要一位救援隊長'}</p>
+    </div></div>`;
+  document.getElementById('start').onclick = () => {
+    document.body.classList.remove('in-cine');
+    beep([[523, 0], [784, .12]]);
+    viewHome();
+  };
+}
 function viewHome() {
-  if (!S.opened) { S.opened = true; save(); return comic(OPENING.bg, OPENING.lines, viewHome); }
+  window.scrollTo(0, 0);
+  if (!S.opened) { S.opened = true; save(); return comic(OPENING.bg, OPENING.lines, viewHome, { skip: true, last: '出發！' }); }
   if (S.unit >= 11 && !S.s2Seen) { S.s2Seen = true; save(); return comic(SEASON2.bg, SEASON2.lines, viewHome); }
+  const keys = Object.keys(GAMES);
   const saved = k => (S.prog[k] || 0) >= ROUNDS_TO_SAVE;
-  const allSaved = Object.keys(GAMES).every(saved);
-  const nSaved = Object.keys(GAMES).filter(saved).length;
-  const line = S.bossDone ? '大霧散了！小鎮天天都在慶祝。' : allSaved ? '只剩後山的山洞還在冒霧⋯⋯' : '隊長，今天要先救誰？';
+  const allSaved = keys.every(saved), nSaved = keys.filter(saved).length;
+  const nextKey = keys.find(k => !saved(k) && S.prog[k]) || keys.find(k => !saved(k));
+  const line = S.bossDone ? '大霧散了！小鎮天天都在慶祝。' : allSaved ? '線索全都指向後山的山洞⋯⋯走吧！' : nSaved === 0 && !S.prog[nextKey] ? `隊長，先去救${STORY[nextKey].whoName}！` : `下一站：${STORY[nextKey].place}，${STORY[nextKey].mission}！`;
+  const ROW = 132, rows = keys.length + 1, pts = [];
+  for (let i = 0; i < rows; i++) pts.push([i % 2 ? 70 : 30, ROW * i + 62]);
+  const pathD = pts.map((q, i) => i === 0 ? `M${q[0]} ${q[1]}` : `C${pts[i - 1][0]} ${q[1] - 70} ${q[0]} ${pts[i - 1][1] + 70} ${q[0]} ${q[1]}`).join('');
+  const stop = (k, i) => {
+    const pr = Math.min(S.prog[k] || 0, ROUNDS_TO_SAVE), st = STORY[k], done = pr >= ROUNDS_TO_SAVE, now = k === nextKey && !done;
+    const pips = Array.from({ length: ROUNDS_TO_SAVE }, (_, n) => `<i class="${n < pr ? 'on' : ''}"></i>`).join('');
+    return `<button class="stop ${i % 2 ? 'right' : 'left'} ${done ? 'done' : ''} ${now ? 'now' : ''}" data-g="${k}" style="top:${ROW * i}px">
+      <span class="medal" style="${bgStyle(st.bg)}"><span class="fog f${pr}"></span>${artImg(st.who, 'medal-who')}${done ? '<span class="badge">✓</span>' : ''}</span>
+      <span class="plate"><b>${GAMES[k].name}</b><small>${done ? `${st.whoName}得救了！` : st.mission}</small><span class="lvl">${pips}</span></span>
+      ${now ? artImg('liang', 'guide') : ''}
+    </button>`;
+  };
   $app.innerHTML = `
-    <div class="hero" style="${bgStyle(S.bossDone ? 'town_clear' : 'town_fog')}">
-      <div class="home-head"><h1>數感小鎮</h1><div class="star-count">⭐ ${N(S.stars)}</div></div>
+    <div class="map-bg"><div class="m1" style="${bgStyle('town_fog')}"></div><div class="m2" style="${bgStyle('town_clear')};opacity:${S.bossDone ? 1 : nSaved / keys.length * .85}"></div><div class="shade"></div></div>
+    <header class="map-head">
+      <div class="map-title"><h1 class="logo small">數感小鎮</h1><div class="star-count">⭐ ${N(S.stars)}</div></div>
       <div class="hero-say">${artImg(S.bossDone ? 'liang_cheer' : 'liang', 'hero-liang')}<span>${line}</span></div>
+    </header>
+    <div class="trail" style="height:${ROW * rows + 8}px">
+      <svg viewBox="0 0 100 ${ROW * rows}" preserveAspectRatio="none" aria-hidden="true"><path d="${pathD}" fill="none" stroke="#fff6e3" stroke-width="5" stroke-dasharray="3 11" stroke-linecap="round" vector-effect="non-scaling-stroke" opacity=".9"/></svg>
+      ${keys.map(stop).join('')}
+      <button class="stop ${keys.length % 2 ? 'right' : 'left'} cave ${allSaved && !S.bossDone ? 'now' : ''}" data-g="boss" ${allSaved ? '' : 'disabled'} style="top:${ROW * keys.length}px">
+        <span class="medal" style="${bgStyle(BOSS.bg)}"><span class="fog ${S.bossDone ? 'f3' : allSaved ? 'f1' : 'f0'}"></span>${allSaved ? artImg(S.bossDone ? 'mimi_happy' : 'mimi', 'medal-who') : '<span class="lock">？</span>'}</span>
+        <span class="plate"><b>${S.bossDone ? '和迷迷玩' : '後山的山洞'}</b><small>${allSaved ? (S.bossDone ? '再挑戰一次' : '霧是從這裡來的') : `先幫完大家（${nSaved}/${keys.length}）`}</small></span>
+      </button>
     </div>
-    <div class="daily">
-      <button class="daily-btn" id="daily">${S.stamps[today()] ? '✔ 今日任務完成' : '★ 今日任務'}<small>${Object.keys(S.stamps).length} 個章</small></button>
-      <button class="daily-btn alt" id="practice">練習場<small>自己選</small></button>
-      <button class="daily-btn alt" id="clues">線索本<small>${nSaved} / ${Object.keys(GAMES).length}</small></button>
-    </div>
-    <div class="town">${Object.entries(GAMES).map(([k, g]) => {
-      const p = Math.min(S.prog[k] || 0, ROUNDS_TO_SAVE), st = STORY[k];
-      const pips = Array.from({ length: ROUNDS_TO_SAVE }, (_, i) => `<i class="${i < p ? 'on' : ''}"></i>`).join('');
-      return `<button class="spot" data-g="${k}">
-        <div class="thumb" style="${bgStyle(st.bg)}">${HAS[st.bg] ? '' : `<svg viewBox="0 0 56 56" aria-hidden="true">${g.icon}</svg>`}<div class="fog f${p}"></div>${artImg(st.who, 'thumb-who')}</div>
-        <b>${g.name}</b><small>${p >= ROUNDS_TO_SAVE ? `${st.whoName}得救了！` : st.mission}</small><span class="lvl" aria-label="進度">${pips}</span></button>`;
-    }).join('')}
-    <button class="spot bosscard" data-g="boss" ${allSaved ? '' : 'disabled'}>
-      <div class="thumb" style="${bgStyle(BOSS.bg)}"><div class="fog ${S.bossDone ? 'f3' : 'f1'}"></div>${allSaved ? artImg(S.bossDone ? 'mimi_happy' : 'mimi', 'thumb-who') : ''}</div>
-      <b>${S.bossDone ? '和迷迷玩' : '後山的山洞'}</b><small>${allSaved ? (S.bossDone ? '再挑戰一次' : '霧是從這裡來的') : `先幫完大家（${nSaved}/${Object.keys(GAMES).length}）`}</small></button>
-    </div>`;
+    <nav class="dock">
+      <button id="daily" class="${S.stamps[today()] ? 'stamped' : 'hot'}"><b>${S.stamps[today()] ? '✔' : '★'}</b>今日任務<small>${Object.keys(S.stamps).length} 個章</small></button>
+      <button id="clues"><b>🔍</b>線索本<small>${nSaved} / ${keys.length}</small></button>
+      <button id="practice"><b>✏️</b>練習場<small>自己選</small></button>
+    </nav>`;
   document.querySelectorAll('[data-g]').forEach(b => b.onclick = () => enter(b.dataset.g));
   document.getElementById('daily').onclick = () => startRound('daily');
   document.getElementById('practice').onclick = viewPractice;
@@ -813,7 +867,8 @@ function viewParent() {
 function go(h) { if (location.hash.slice(1) === h) route(); else location.hash = h; }
 function route() {
   window.onpointerup = null;
-  if (location.hash === '#parent') viewParent(); else viewHome();
+  document.body.classList.remove('in-cine');
+  if (location.hash === '#parent') viewParent(); else if (!titleShown) viewTitle(); else viewHome();
 }
 window.addEventListener('hashchange', route);
 preloadArt().then(route);
