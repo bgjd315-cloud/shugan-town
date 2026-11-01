@@ -838,7 +838,7 @@ function viewHome() {
     const pips = Array.from({ length: ROUNDS_TO_SAVE }, (_, n) => `<i class="${n < pr ? 'on' : ''}"></i>`).join('');
     return `<button class="stop ${i % 2 ? 'right' : 'left'} ${done ? 'done' : ''} ${now ? 'now' : ''}" data-g="${k}" style="top:${ROW * i}px">
       <span class="medal" style="${bgStyle(st.bg)}"><span class="fog f${pr}"></span>${artImg(st.who, 'medal-who')}${done ? '<span class="badge">✓</span>' : ''}</span>
-      <span class="plate"><b>${GAMES[k].name}</b><small>${done ? `${st.whoName}得救了！` : st.mission}</small><span class="lvl">${pips}</span></span>
+      <span class="plate"><b>${GAMES[k].name}</b>${now ? `<small>${st.mission}</small>` : ''}<span class="lvl">${pips}</span></span>
       ${now ? artImg('liang', 'guide') : ''}
     </button>`;
   };
@@ -925,4 +925,19 @@ function route() {
 }
 window.addEventListener('hashchange', route);
 new MutationObserver(() => annotate($app)).observe($app, { childList: true, subtree: true });
+// 有新版就自動載入；進度存在瀏覽器裡，不受影響。正在答題時不打斷，下次切回來再檢查
+async function checkUpdate() {
+  if (!window.APP_V || R) return;
+  try {
+    const r = await fetch('version.txt?t=' + Date.now(), { cache: 'no-store' });
+    if (!r.ok) return;
+    const latest = (await r.text()).trim();
+    if (!/^\d+$/.test(latest) || latest === window.APP_V || R) return;
+    if (sessionStorage.getItem('shugan-updated-to') === latest) return; // 避免快取沒更新時一直重載
+    sessionStorage.setItem('shugan-updated-to', latest);
+    location.replace(location.pathname + '?v=' + latest + location.hash);
+  } catch (e) {}
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) checkUpdate(); });
+checkUpdate();
 preloadArt().then(route);

@@ -357,3 +357,22 @@ body { line-height: 1.75; }
 .tag { font-size: 19px; }
 .say-who { width: 46px; height: 46px; }
 .dock #daily { font-size: 15px; }
+
+/* 聲調要看得清楚：注音放大，聲調獨立一欄，不和注音或下一個字擠在一起 */
+.bp { font-size: max(.5em, 11px); line-height: 1.08; width: 1.85em; padding-right: .85em; margin-right: .08em; }
+.bp .tone { right: 0; width: .85em; text-align: center; font-size: 1.25em; font-weight: 700; top: 50%; transform: translateY(-50%); }
+.bp .qing { font-size: 1.3em; font-weight: 700; line-height: .55; }
+.pan-t .bp { font-size: 10px; width: 1.85em; padding-right: .85em; }
+.pan-t { font-size: 17px; }
+.dock button { font-size: 15px; }
+.dock #daily { font-size: 14px; }
+.plate small { font-size: 15px; }
+.choice { font-size: 18px; }
+
+.plate b { font-size: 19px; white-space: nowrap; }
+.stop { width: 88%; }
+.stop .plate { padding: 8px 8px 8px 18px; }
+.stop.right .plate { padding: 8px 18px 8px 8px; }
+.dock { grid-template-columns: 1.35fr 1fr 1fr; }
+.dock button { min-height: 74px; }
+.dock .bp { font-size: 9px; }
