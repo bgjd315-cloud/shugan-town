@@ -11,6 +11,7 @@ const GAMES = {
   train: { name: '霧中小火車', tip: '上車下車，想一想', color: 'var(--warn)', icon: '<rect x="6" y="16" width="34" height="24" rx="4" fill="#d9772b"/><rect x="38" y="24" width="14" height="16" rx="3" fill="#33405a"/><circle cx="16" cy="44" r="5" fill="#33405a"/><circle cx="36" cy="44" r="5" fill="#33405a"/>' },
   shop: { name: '零錢小舖', tip: '用最少的錢幣付錢', color: 'var(--sun)', icon: '<circle cx="22" cy="24" r="16" fill="#f5a524"/><circle cx="36" cy="36" r="14" fill="#c9cfdc" stroke="#77809a" stroke-width="2"/>' },
 };
+const SEM = { line: '二上・二下', block: '二上・二下', frog: '二上・二下', scale: '二上・二下', candy: '二上・二下', clock: '二上', train: '二上・二下', shop: '二上・二下' }; // 全部單元開放，標明學期
 const ROUNDS_TO_SAVE = 3; // 每個地方玩幾回合就把居民救回來
 const BOSS_ORDER = ['line', 'block', 'frog', 'scale', 'candy', 'train'];
 const ART = ['liang', 'liang_cheer', 'liang_think', 'pipi', 'amu', 'gua', 'gua_jump', 'song', 'bear', 'mimi', 'mimi_happy', 'chest', 'town_fog', 'town_clear', 'beach', 'bridge', 'pond', 'market', 'candy_shop', 'fog_cave', 'night_stars', 'owl', 'mole', 'monkey', 'mimi_peek', 'clock_tower', 'station', 'toy_shop', 'win_line', 'win_block', 'win_frog', 'win_scale', 'win_candy', 'win_clock', 'win_train', 'win_shop', 'festival', 'clue_line', 'clue_block', 'clue_frog', 'clue_scale', 'clue_candy', 'clue_clock', 'clue_train', 'clue_shop'];
@@ -29,6 +30,7 @@ function load() {
   return null;
 }
 const S = Object.assign({ stars: 0, unit: 6, sound: true, rec: {}, log: [], opened: false, prog: {}, bossDone: false, bossSeen: false, stamps: {} }, load() || {});
+S.unit = 20; // 全部單元開放
 function save() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(S)); } catch (e) {} }
 const rec = g => S.rec[g] || (S.rec[g] = { lv: 0, up: 0, down: 0 });
 
@@ -141,12 +143,21 @@ function setMsg(html, cls) {
   const m = document.getElementById('msg');
   if (m) { m.className = 'msg ' + (cls || ''); m.innerHTML = html; }
 }
+function semOf(q) { // 這一題屬於哪一學期
+  if (!q) return '';
+  const low = /(^|×)(0|1|10)(×|$)/;
+  const down = (q.kind === 'line' && q.b >= 1000) || (q.kind === 'block' && q.v > 300) || (q.kind === 'frog' && (q.s > 300 || q.t > 300))
+    || (q.kind === 'scale' && (q.mode === 'near' || q.frac || (q.mode === 'cmp' && (q.l > 300 || q.r > 300 || low.test(q.lText) || low.test(q.rText)))))
+    || (q.kind === 'candy' && (q.special || ['pack', 'share', 'frac', 'fair'].includes(q.mode)))
+    || (q.kind === 'train' && q.mode === 'mult') || (q.kind === 'shop' && (q.mode === 'enough' || q.price > 100));
+  return down ? '二下' : '二上';
+}
 function frame(promptHtml, stageHtml, extra) {
   const dots = Array.from({ length: ROUND }, (_, i) => `<i class="${i < R.grades.length ? 'g' + R.grades[i] : i === R.i ? 'now' : ''}"></i>`).join('');
   $app.innerHTML = `
     <div class="top">
       <button class="icon-btn" id="home" aria-label="回小鎮">⌂</button>
-      <div class="dots">${dots}</div>
+      <div class="dots">${dots}</div><span class="sem">${semOf(R.q)}</span>
       <button class="icon-btn" id="say" aria-label="唸題目">🔊</button>
     </div>
     <div class="say-row">${artImg(R.boss ? 'mimi' : R.daily ? 'liang' : STORY[R.game].who, 'say-who')}<div class="prompt" id="prompt">${promptHtml}</div></div>
@@ -277,7 +288,7 @@ function practiceTopics() {
 function viewPractice() {
   const groups = Object.keys(GAMES).map(k => {
     const ts = practiceTopics().filter(t => t[0] === k);
-    return ts.length ? `<h3 class="pg-h">${GAMES[k].name}</h3><div class="pg">${ts.map(t => `<button class="pg-btn" data-g="${t[0]}" data-l="${t[1]}">${nums(t[2])}</button>`).join('')}</div>` : '';
+    return ts.length ? `<h3 class="pg-h">${GAMES[k].name}<span class="sem">${SEM[k]}</span></h3><div class="pg">${ts.map(t => `<button class="pg-btn" data-g="${t[0]}" data-l="${t[1]}"><span class="sem">${t[3] >= 11 ? '二下' : '二上'}</span>${nums(t[2])}</button>`).join('')}</div>` : '';
   }).join('');
   $app.innerHTML = `<div class="top"><button class="icon-btn" id="home" aria-label="回小鎮">⌂</button><h2 class="page-h">練習場</h2></div><p class="tag">想多練哪一個？</p>${groups}`;
   document.getElementById('home').onclick = () => go('');
@@ -857,7 +868,7 @@ function viewTitle() {
 function viewHome() {
   window.scrollTo(0, 0);
   if (!S.opened) { S.opened = true; save(); return comic(OPENING.bg, OPENING.lines, viewHome, { skip: true, last: '出發！' }); }
-  if (S.unit >= 11 && !S.s2Seen) { S.s2Seen = true; save(); return comic(SEASON2.bg, SEASON2.lines, viewHome); }
+  if (S.bossDone && !S.s2Seen) { S.s2Seen = true; save(); return comic(SEASON2.bg, SEASON2.lines, viewHome); }
   const keys = Object.keys(GAMES);
   const saved = k => (S.prog[k] || 0) >= ROUNDS_TO_SAVE;
   const allSaved = keys.every(saved), nSaved = keys.filter(saved).length;
@@ -871,7 +882,7 @@ function viewHome() {
     const pips = Array.from({ length: ROUNDS_TO_SAVE }, (_, n) => `<i class="${n < pr ? 'on' : ''}"></i>`).join('');
     return `<button class="stop ${i % 2 ? 'right' : 'left'} ${done ? 'done' : ''} ${now ? 'now' : ''}" data-g="${k}" style="top:${ROW * i}px">
       <span class="medal" style="${bgStyle(st.bg)}"><span class="fog f${pr}"></span>${artImg(st.who, 'medal-who')}${done ? '<span class="badge">✓</span>' : ''}</span>
-      <span class="plate"><b>${GAMES[k].name}</b>${now ? `<small>${st.mission}</small>` : ''}<span class="lvl">${pips}</span></span>
+      <span class="plate"><b>${GAMES[k].name}</b><em class="sem">${SEM[k]}</em><span class="lvl">${pips}</span></span>
       ${now ? artImg('liang', 'guide') : ''}
     </button>`;
   };
@@ -928,9 +939,7 @@ function viewParent() {
   const miss = recentMisses();
   $app.innerHTML = `<div class="parent">
     <h1>家長頁</h1>
-    <h2>學校教到第幾單元（南一）</h2>
-    <select id="unit">${UNITS.map((u, i) => `<option value="${i + 1}" ${S.unit === i + 1 ? 'selected' : ''}>${i < 10 ? '二上' : '二下'} 第 ${i < 10 ? i + 1 : i - 9} 單元　${u}</option>`).join('')}</select>
-    <p>題目會跟著這裡開放：二上第 7 單元前乘法只用 2、5 個一數，第 7 單元開 2、5、4、8，第 9 單元開全部。二下開數到 1000、估算、0／1／10 的乘法、分東西、單位分數。</p>
+    <h2>單元</h2><p>二上、二下所有單元都已開放，孩子可以自由選地點。每個地點和每一題都有標示是二上或二下。</p>
     <h2>各遊戲狀況</h2>
     <table><tr><th>遊戲</th><th>等級</th><th>紀錄</th></tr>${rows}</table>
     <h2>最近沒答出來的題目</h2>
@@ -941,7 +950,6 @@ function viewParent() {
     <button class="link" id="out">回小鎮</button>
     <p class="note" style="font-size:14px">紀錄只存在這台裝置的瀏覽器，不會傳到網路。題目皆為自編，非課本內容。</p>
   </div>`;
-  document.getElementById('unit').onchange = e => { S.unit = +e.target.value; save(); };
   document.getElementById('snd').onchange = e => { S.sound = e.target.checked; save(); };
   document.getElementById('reset').onclick = () => {
     if (confirm('確定清除所有星星和紀錄？')) { S.stars = 0; S.rec = {}; S.log = []; S.prog = {}; S.opened = false; S.bossDone = false; S.bossSeen = false; S.s2Seen = false; S.stamps = {}; save(); viewParent(); }
