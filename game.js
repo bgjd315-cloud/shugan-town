@@ -319,7 +319,7 @@ function bindKeypad(onOk) {
     b.onclick = () => {
       const k = b.dataset.k;
       if (k === 'del') val = val.slice(0, -1);
-      else if (k === 'ok') { if (val) onOk(+val, () => { val = ''; show(); }); return; }
+      else if (k === 'ok') { if (val) onOk(+val, () => { val = ''; show(); }); else { setMsg('先按數字，再按打勾。', 'hint'); sfx.retry(); } return; }
       else if (val.length < 3) val = (val + k).replace(/^0+(?=\d)/, '');
       show();
     };
