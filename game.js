@@ -125,6 +125,7 @@ function nextQ() {
   VIEWS[R.game](q);
 }
 // 一題結束：grade 2 第一次就很棒、1 第二次或差一點、0 沒答出來
+const reveal = sel => setTimeout(() => { const e = document.querySelector(sel); if (e) e.scrollIntoView({ block: 'nearest' }); }, 40); // 等注音排好才捲動，字變高才不會又把按鈕擠出去
 function finish(grade, detail, msgHtml) {
   const r = rec(R.game);
   if (R.fixedLv === undefined) Logic.adjust(r, grade, Logic.maxLevel(R.game, S.unit)); // 練習場不動等級
@@ -139,7 +140,7 @@ function finish(grade, detail, msgHtml) {
   a.innerHTML = `<button class="btn" id="next">${R.i >= ROUND ? '看成果' : '下一題'}</button>`;
   document.getElementById('next').onclick = nextQ;
   document.querySelectorAll('.keypad, .entry').forEach(x => { x.style.display = 'none'; }); // 答完收起鍵盤，下一題才不會被擠到畫面外
-  a.scrollIntoView({ block: 'nearest' });
+  reveal('#actions');
 }
 function setMsg(html, cls) {
   const m = document.getElementById('msg');
@@ -653,7 +654,7 @@ function viewCandyDeal(q) {
     const d = document.getElementById('deal');
     d.textContent = pack ? '裝一盒' : '每人發一顆';
     d.style.display = left === 0 ? 'none' : '';
-    if (left === 0 && !R.tries) { setMsg('分完了！數一數，按下面的數字回答。', 'good'); document.getElementById('entry').scrollIntoView({ block: 'nearest' }); }
+    if (left === 0 && !R.tries) { setMsg('分完了！按數字回答。', 'good'); reveal('.keypad'); }
   }
   document.getElementById('deal').onclick = () => { left -= pack ? q.a : q.b; rounds++; sfx.hop(); draw(); };
   draw();
