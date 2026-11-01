@@ -242,8 +242,8 @@ body.in-cine #app { padding: 0; max-width: none; }
 .map-head { position: sticky; top: 0; z-index: 5; margin: -14px -16px 8px; padding: 12px 16px 10px; background: linear-gradient(rgba(36,34,70,.85), rgba(36,34,70,.55) 75%, transparent); }
 .map-title { display: flex; justify-content: space-between; align-items: center; }
 .map-head .hero-say { margin-top: 6px; border: 2px solid #f3d98f; }
-.trail { position: relative; margin-bottom: 104px; }
-.trail > svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.map-trail { position: relative; margin-bottom: 104px; }
+.map-trail > svg { position: absolute; inset: 0; width: 100%; height: 100%; }
 .stop { position: absolute; display: flex; align-items: center; gap: 0; width: 72%; padding: 0; text-align: left; transition: transform .12s; }
 .stop.left { left: 0; } .stop.right { right: 0; flex-direction: row-reverse; text-align: right; }
 .stop:active { transform: scale(.97); }
@@ -273,9 +273,27 @@ body.in-cine #app { padding: 0; max-width: none; }
 @media (min-width: 720px) { .cine .scene { aspect-ratio: 16/9; } .medal { width: 124px; height: 124px; } }
 
 .map-bg { z-index: 0; }
-.map-head, .trail { z-index: 1; }
+.map-head, .map-trail { z-index: 1; }
 .map-head { z-index: 5; }
 .cine { justify-content: center; }
 .cine .scene { border-radius: 26px; width: calc(100% - 16px); }
 .guide { top: -20px; }
 .stop.left .guide { left: 66px; } .stop.right .guide { right: 66px; }
+
+/* 小火車人數圖 */
+.seats { display: block; min-height: 0; }
+.ride { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: center; gap: 4px; min-height: 60px; }
+.people { display: inline-flex; align-items: flex-end; flex-wrap: wrap; gap: 3px; justify-content: center; }
+.p10 { display: flex; flex-direction: column; gap: 1px; }
+.p1s { display: grid; grid-template-columns: repeat(5, 11px); gap: 1px; direction: ltr; }
+.p10 i, .p1s i { display: block; width: 11px; height: 6px; border-radius: 1px; background: var(--leaf); }
+.p1s i { height: 11px; }
+.people.new i { background: var(--warn); }
+.people i.gone { background: transparent; box-shadow: inset 0 0 0 1px var(--warn); }
+.plus { font-size: 24px; color: var(--soft); align-self: center; margin: 0 3px; font-family: system-ui, sans-serif; }
+.plus.gap { margin: 0 2px; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; justify-content: center; margin-top: 6px; font-size: 17px; }
+.lg { display: inline-flex; align-items: center; gap: 5px; }
+.lg i { width: 13px; height: 13px; border-radius: 3px; background: var(--leaf); display: block; }
+.lg i.new { background: var(--warn); }
+.lg i.gone { background: transparent; box-shadow: inset 0 0 0 2px var(--warn); }

@@ -665,9 +665,21 @@ function viewClock(q) {
 }
 
 /* ---------- 霧中小火車 ---------- */
-function seats(n) {
-  const t = Math.floor(n / 10), o = n % 10;
-  return `<div class="pile train-seats">${'<span class="b10"></span>'.repeat(Math.min(t, 15))}${'<span class="b1"></span>'.repeat(o)}</div>`;
+function peopleBlock(n, cls, leaveFrom) {
+  // 十人一條、一人一格；leaveFrom 之後的人是下車的，畫成虛線
+  const cell = i => `<i class="${leaveFrom !== undefined && i >= leaveFrom ? 'gone' : ''}"></i>`;
+  let h = '', i = 0;
+  while (n - i >= 10) { h += `<span class="p10">${Array.from({ length: 10 }, (_, k) => cell(i + k)).join('')}</span>`; i += 10; }
+  if (n - i > 0) h += `<span class="p1s">${Array.from({ length: n - i }, (_, k) => cell(i + k)).join('')}</span>`;
+  return `<span class="people ${cls}">${h}</span>`;
+}
+function seats(before, op) {
+  const legend = (cls, text) => `<span class="lg"><i class="${cls}"></i>${nums(text)}</span>`;
+  if (!op) return `<div class="ride">${peopleBlock(before, 'old')}</div><div class="legend">${legend('old', `車上 ${before} 人`)}</div>`;
+  if (op.d > 0) return `<div class="ride">${peopleBlock(before, 'old')}<b class="plus">＋</b>${peopleBlock(op.n, 'new')}</div>
+    <div class="legend">${legend('old', `原本 ${before} 人`)}${legend('new', `上車 ${op.n} 人`)}</div>`;
+  return `<div class="ride">${peopleBlock(before, 'old', before - op.n)}</div>
+    <div class="legend">${legend('old', `原本 ${before} 人`)}${legend('gone', `下車 ${op.n} 人`)}</div>`;
 }
 function viewTrain(q) {
   const opText = o => `${o.t} ${N(o.n)} 人`;
@@ -680,7 +692,7 @@ function viewTrain(q) {
   let step = 0, pre = q.mode === 'mult' ? null : q.start;
   frame(head, `<div class="seats" id="seats"></div><div class="trail" id="ask"></div>`, keypadHtml());
   const draw = () => {
-    document.getElementById('seats').innerHTML = pre === null ? `<div class="pile train-seats">${Array.from({ length: q.b }, () => `<span class="box">${sweetDots(q.a)}</span>`).join('')}</div>` : seats(pre);
+    document.getElementById('seats').innerHTML = pre === null ? `<div class="ride">${Array.from({ length: q.b }, () => peopleBlock(q.a, 'old')).join('<b class="plus gap"></b>')}</div><div class="legend"><span class="lg">${nums(`每節 ${q.a} 人，${q.b} 節`)}</span></div>` : seats(pre, q.mode === 'mult' ? q.ops[0] : q.ops[step]);
     document.getElementById('ask').innerHTML = nums(asks[step]).replace(/<span class="num"><span class="num">/g, '<span class="num">');
   };
   draw();
@@ -795,7 +807,7 @@ function viewHome() {
       <div class="map-title"><h1 class="logo small">數感小鎮</h1><div class="star-count">⭐ ${N(S.stars)}</div></div>
       <div class="hero-say">${artImg(S.bossDone ? 'liang_cheer' : 'liang', 'hero-liang')}<span>${line}</span></div>
     </header>
-    <div class="trail" style="height:${ROW * rows + 8}px">
+    <div class="map-trail" style="height:${ROW * rows + 8}px">
       <svg viewBox="0 0 100 ${ROW * rows}" preserveAspectRatio="none" aria-hidden="true"><path d="${pathD}" fill="none" stroke="#fff6e3" stroke-width="5" stroke-dasharray="3 11" stroke-linecap="round" vector-effect="non-scaling-stroke" opacity=".9"/></svg>
       ${keys.map(stop).join('')}
       <button class="stop ${keys.length % 2 ? 'right' : 'left'} cave ${allSaved && !S.bossDone ? 'now' : ''}" data-g="boss" ${allSaved ? '' : 'disabled'} style="top:${ROW * keys.length}px">
