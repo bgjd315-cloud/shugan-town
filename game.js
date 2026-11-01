@@ -138,6 +138,8 @@ function finish(grade, detail, msgHtml) {
   const a = document.getElementById('actions');
   a.innerHTML = `<button class="btn" id="next">${R.i >= ROUND ? '看成果' : '下一題'}</button>`;
   document.getElementById('next').onclick = nextQ;
+  document.querySelectorAll('.keypad, .entry').forEach(x => { x.style.display = 'none'; }); // 答完收起鍵盤，下一題才不會被擠到畫面外
+  a.scrollIntoView({ block: 'nearest' });
 }
 function setMsg(html, cls) {
   const m = document.getElementById('msg');
@@ -650,7 +652,8 @@ function viewCandyDeal(q) {
     document.getElementById('boxes').innerHTML = boxes.join('');
     const d = document.getElementById('deal');
     d.textContent = pack ? '裝一盒' : '每人發一顆';
-    d.disabled = left === 0;
+    d.style.display = left === 0 ? 'none' : '';
+    if (left === 0 && !R.tries) { setMsg('分完了！數一數，按下面的數字回答。', 'good'); document.getElementById('entry').scrollIntoView({ block: 'nearest' }); }
   }
   document.getElementById('deal').onclick = () => { left -= pack ? q.a : q.b; rounds++; sfx.hop(); draw(); };
   draw();
