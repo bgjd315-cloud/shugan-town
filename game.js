@@ -129,6 +129,7 @@ const reveal = sel => setTimeout(() => { const e = document.querySelector(sel); 
 function finish(grade, detail, msgHtml) {
   const r = rec(R.game);
   if (R.fixedLv === undefined) Logic.adjust(r, grade, Logic.maxLevel(R.game, S.unit)); // 練習場不動等級
+  if (R.q) { S.fast = S.fast || {}; const fk = R.q.kind + ':' + R.q.mode; S.fast[fk] = grade === 2 ? (S.fast[fk] || 0) + 1 : 0; } // 熟練紀錄
   R.grades.push(grade); R.earned += grade; S.stars += grade;
   S.log.push({ g: R.game, lv: r.lv, gr: grade, d: detail, t: Date.now() });
   if (S.log.length > 300) S.log = S.log.slice(-300);
@@ -327,6 +328,31 @@ function bindKeypad(onOk) {
 }
 function lockKeypad() { document.querySelectorAll('.keypad button').forEach(b => { b.disabled = true; b.style.opacity = .35; }); }
 
+/* ---------- 先動手再作答 ---------- */
+const isFast = q => ((S.fast || {})[q.kind + ':' + q.mode] || 0) >= 3; // 連續 3 次第一次就對就跳過操作，答錯回到動手做
+const padHidden = () => `<div class="pad-wrap" hidden><div class="trail" id="ask"></div>${keypadHtml()}</div>`;
+const setEl = (id, html) => { document.getElementById(id).innerHTML = html; };
+function actionBtn(id, text) { document.getElementById('actions').innerHTML = `<button class="btn" id="${id}">${text}</button>`; return document.getElementById(id); }
+function afterAct(fn) { document.getElementById('actions').innerHTML = ''; document.querySelectorAll('.pad-wrap').forEach(x => { x.hidden = false; }); reveal('.pad-wrap'); fn(); }
+function dragOn(wrap, cb, sel) { // 手指在圖上拖：回傳在圖形裡的相對位置 0～1
+  wrap.classList.add('drag-prot');
+  const read = e => { const g = sel === 'self' ? wrap : sel ? wrap.querySelector(sel) : wrap.querySelector('svg'), b = g.getBoundingClientRect(); cb((e.clientX - b.left) / b.width, (e.clientY - b.top) / b.height, e); };
+  let on = false;
+  wrap.onpointerdown = e => { on = true; try { wrap.setPointerCapture(e.pointerId); } catch (x) {} read(e); e.preventDefault(); };
+  wrap.onpointermove = e => { if (on) read(e); };
+  wrap.onpointerup = wrap.onpointercancel = () => { on = false; };
+}
+const tapAlso = (id, btn) => { const el = document.getElementById(id); if (el) el.onclick = () => { const b = document.getElementById(btn); if (b) b.click(); }; };
+function gate(q, label, n, onStep, ask) { // 動手 n 次才能作答；也可以直接點圖；熟練後跳到作答
+  const lab = k => Array.isArray(label) ? label[k] : label;
+  if (isFast(q) || n <= 0) { for (let k = 1; k <= n; k++) onStep(k); return afterAct(ask); }
+  let k = 0, over = false;
+  const st = document.getElementById('stage');
+  const paint = () => { actionBtn('gt', lab(k)).onclick = () => { k++; sfx.hop(); onStep(k); if (k === n) { over = true; st.onclick = null; afterAct(ask); } else paint(); }; };
+  paint();
+  st.onclick = e => { if (!over && e.target.closest('svg, .ride, .seats, .fill-text') && !e.target.closest('button')) document.getElementById('gt').click(); };
+}
+
 /* ---------- 尋寶數線 ---------- */
 const LX0 = 30, LX1 = 610;
 function lineSvg(a, b, s, labels) {
@@ -404,8 +430,9 @@ function viewLine(q) {
 }
 function viewLineRead(q) {
   const X = v => LX0 + (v - q.a) / (q.b - q.a) * (LX1 - LX0);
-  frame(`船長的旗子插在這裡，<br>是多少？一小格是 ${N(q.unit)}。`, lineSvg(q.a, q.b, q.unit, q.marks));
+  frame(`船長的旗子插在這裡，<br>是多少？一小格是 ${N(q.unit)}。`, lineSvg(q.a, q.b, q.unit, q.marks) + '<div class="trail" id="ct"></div>');
   drawPin(X(q.v), '#d6476b');
+  const ask = () => {
   document.getElementById('actions').innerHTML = `<div class="choices">${q.options.map(o => `<button class="choice num" data-o="${o}">${o}</button>`).join('')}</div>`;
   document.querySelectorAll('.choice').forEach(b => {
     b.onclick = () => {
@@ -415,6 +442,9 @@ function viewLineRead(q) {
       setMsg(nums(`${o} 應該在${o > q.v ? '更右邊' : '更左邊'}。從最近的標記開始，一格一格數。`), 'hint');
     };
   });
+  };
+  const m0 = nearestMark(q);
+  gate(q, '從最近的數字數一數', 1, () => setEl('ct', nums(`從 ${m0} ${q.v > m0 ? '往右' : '往左'}數了 ${Math.abs(q.v - m0) / q.unit} 格，一格是 ${q.unit}`)), ask);
 }
 function nearestMark(q) {
   return q.marks.reduce((a, b) => Math.abs(b - q.v) < Math.abs(a - q.v) ? b : a);
@@ -434,7 +464,7 @@ function viewBlock(q) {
   const prompt = q.mode === 'trade'
     ? `${N(q.h)} 個百、${N(q.t)} 個十、${N(q.o)} 個一<br>木頭共有多少塊？`
     : (q.note ? `${q.note}用十和一，<br>拼出 ${N(q.v)} 塊木頭。` : `這段橋要 ${N(q.v)} 塊木頭！`);
-  frame(prompt, `<div class="board" id="board"></div><div class="trade" id="trade"></div>`, q.mode === 'trade' ? keypadHtml() : '');
+  frame(prompt, `<div class="board" id="board"></div><div class="trade" id="trade"></div>${q.mode === 'trade' ? padHidden() : ''}`);
   function draw(locked) {
     document.getElementById('board').innerHTML = [0, 1, 2].map(i => {
       const shown = Math.min(st[i], 30);
@@ -449,14 +479,21 @@ function viewBlock(q) {
     if (locked) { t.innerHTML = ''; return; }
     t.innerHTML = `<button data-tr="ones" ${st[2] >= 10 ? '' : 'disabled'}>${nums('10個一→1個十')}</button>
       ${q.note ? '' : `<button data-tr="tens" ${st[1] >= 10 ? '' : 'disabled'}>${nums('10個十→1個百')}</button>`}`;
-    t.querySelector('[data-tr=ones]').onclick = () => { st[2] -= 10; st[1]++; sfx.hop(); draw(); };
-    if (!q.note) t.querySelector('[data-tr=tens]').onclick = () => { st[1] -= 10; st[0]++; sfx.hop(); draw(); };
+    t.querySelector('[data-tr=ones]').onclick = () => { st[2] -= 10; st[1]++; sfx.hop(); draw(); openTrade(); };
+    if (!q.note) t.querySelector('[data-tr=tens]').onclick = () => { st[1] -= 10; st[0]++; sfx.hop(); draw(); openTrade(); };
+    document.querySelectorAll('.pile .b1').forEach(b => { if (q.mode === 'trade') b.onclick = () => { if (st[2] >= 10) t.querySelector('[data-tr=ones]').click(); }; });
+    document.querySelectorAll('.pile .b10').forEach(b => { if (q.mode === 'trade' && !q.note) b.onclick = () => { if (st[1] >= 10) t.querySelector('[data-tr=tens]').click(); }; });
   }
+  let opened = false;
+  const openTrade = () => { if (q.mode === 'trade' && !opened && st[1] < 10 && st[2] < 10) { opened = true; setEl('trade', ''); setMsg('換好了，讀讀看！', 'good'); afterAct(() => {}); } };
+  if (q.mode === 'trade' && isFast(q)) { while (st[2] >= 10) { st[2] -= 10; st[1]++; } while (st[1] >= 10) { st[1] -= 10; st[0]++; } }
   draw();
   if (q.mode === 'trade') {
+    openTrade();
+    if (!opened) setMsg('點積木或按按鈕，滿 10 個就換一換。');
     bindKeypad((val, clear) => {
       if (val === q.v) { lockKeypad(); draw(true); return finish(R.tries === 0 ? 2 : 1, 'trade', nums(`對了！${q.h} 個百、${q.t} 個十、${q.o} 個一就是 ${q.v}。`)); }
-      if (R.tries === 0) { R.tries = 1; sfx.retry(); clear(); return setMsg('先按上面的黃色按鈕，換一換積木再讀數字。', 'hint'); }
+      if (R.tries === 0) { R.tries = 1; sfx.retry(); clear(); return setMsg('看看每一格各有幾個，再讀一次。', 'hint'); }
       lockKeypad(); draw(true);
       finish(0, { wrong: val, ans: q.v }, nums(`答案是 ${q.v}。十或一滿 10 個，就要換到左邊一位。`));
     });
@@ -543,7 +580,9 @@ function scaleSvg(lText, rText, tilt) {
 }
 function viewScale(q) {
   if (q.mode === 'fill') {
-    frame('天平要平衡，□ 要放多少？', `<div class="fill-text num">${esc(q.text)}</div>`, keypadHtml());
+    const sides = q.text.split('＝');
+    frame('天平要平衡，□ 要放多少？', `<div class="fill-text num">${esc(q.text)}</div><div id="sc">${scaleSvg('', '', null)}</div>${padHidden()}`);
+    gate(q, ['放左邊', '放右邊'], 2, k => setEl('sc', scaleSvg(sides[0], k > 1 ? (sides[1] || '') : '', null)), () => {});
     bindKeypad((val, clear) => {
       if (val === q.ans) { lockKeypad(); return finish(R.tries === 0 ? 2 : 1, 'fill', nums('平衡了！' + q.why)); }
       if (R.tries === 0) { R.tries = 1; sfx.retry(); clear(); return setMsg(nums(`放 ${val} 不平衡。想一想：${q.why.split('，')[0]}。`), 'hint'); }
@@ -553,19 +592,24 @@ function viewScale(q) {
     return;
   }
   if (q.mode === 'near') {
-    frame(`這袋松果有 ${N(q.text)} 顆，<br>大約是多少？`, `<div class="fill-text num">${esc(q.text)}</div>`);
-    document.getElementById('actions').innerHTML = `<div class="choices">${q.options.map(o => `<button class="choice num" data-o="${o}">${o}</button>`).join('')}</div>`;
-    document.querySelectorAll('.choice').forEach(b => {
-      b.onclick = () => {
-        if (+b.dataset.o === q.ans) return finish(R.tries === 0 ? 2 : 1, 'near', nums(q.why));
-        if (R.tries === 0) { R.tries = 1; b.classList.add('no'); b.disabled = true; sfx.retry(); return setMsg('先把兩個數都想成整十，再加起來。', 'hint'); }
-        finish(0, { text: q.text, wrong: +b.dataset.o, ans: q.ans }, nums(q.why));
-      };
-    });
+    const ps = q.text.split(/[＋－]/).map(Number), nearT = x => Math.round(x / 10) * 10;
+    frame(`這袋松果有 ${N(q.text)} 顆，<br>大約是多少？`, `<div class="fill-text num">${esc(q.text)}</div><div class="trail" id="ct">先想成整十</div>`);
+    const ask = () => {
+      document.getElementById('actions').innerHTML = `<div class="choices">${q.options.map(o => `<button class="choice num" data-o="${o}">${o}</button>`).join('')}</div>`;
+      document.querySelectorAll('.choice').forEach(b => {
+        b.onclick = () => {
+          if (+b.dataset.o === q.ans) return finish(R.tries === 0 ? 2 : 1, 'near', nums(q.why));
+          if (R.tries === 0) { R.tries = 1; b.classList.add('no'); b.disabled = true; sfx.retry(); return setMsg('把兩個整十加起來。', 'hint'); }
+          finish(0, { text: q.text, wrong: +b.dataset.o, ans: q.ans }, nums(q.why));
+        };
+      });
+    };
+    gate(q, ['第一個想成整十', '第二個想成整十'], 2, k => setEl('ct', nums(ps.slice(0, k).map(x => `${x} 大約是 ${nearT(x)}`).join('，'))), ask);
     return;
   }
-  frame(q.frac ? '同樣大的蛋糕，<br>哪一邊的一塊比較大？' : '不用算完，<br>哪一邊的松果多？', scaleSvg(q.lText, q.rText, null));
+  frame(q.frac ? '同樣大的蛋糕，<br>哪一邊的一塊比較大？' : '不用算完，<br>哪一邊的松果多？', `<div id="sc">${scaleSvg('', '', null)}</div>`);
   const lab = q.frac ? { L: '左邊大', E: '一樣大', R: '右邊大' } : { L: '左邊多', E: '一樣多', R: '右邊多' };
+  gate(q, ['放到左邊', '放到右邊'], 2, k => setEl('sc', scaleSvg(q.lText, k > 1 ? q.rText : '', null)), () => {
   document.getElementById('actions').innerHTML = `<div class="choices">${['L', 'E', 'R'].map(k => `<button class="choice" data-c="${k}" style="font-size:24px">${lab[k]}</button>`).join('')}</div>`;
   document.querySelectorAll('.choice').forEach(b => {
     b.onclick = () => {
@@ -578,6 +622,7 @@ function viewScale(q) {
       document.getElementById('beam').style.transform = `rotate(${q.ans === 'L' ? -7 : q.ans === 'R' ? 7 : 0}deg)`;
       finish(0, { l: q.lText, r: q.rText, pick: c }, q.frac ? `是${lab[q.ans]}。${q.why}` : nums(`是${lab[q.ans]}：左邊 ${q.l}，右邊 ${q.r}。${q.why}`));
     };
+  });
   });
 }
 
@@ -595,8 +640,10 @@ function viewCandy(q) {
   const prompt = q.mode === 'count' ? `這盒每排 ${N(q.a)} 顆，有 ${N(q.b)} 排，<br>共幾顆？${useX ? `（${N(q.a + '×' + q.b)}）` : ''}`
     : q.mode === 'more' ? `${nums(eq(q.a, q.b))} 是 ${N(q.known)} 顆。<br>多 ${N(1)} 排，共幾顆？`
     : `${nums(eq(q.a, q.b))} 是 ${N(q.known)} 顆。<br>少 ${N(1)} 排，還有幾顆？`;
-  frame(prompt, `<div class="grid" id="grid"></div>`, keypadHtml());
+  frame(prompt, `<div class="grid" id="grid"></div>${padHidden()}`);
   const lit = new Array(rows).fill(false);
+  let openedC = false;
+  const openC = () => { if (!openedC) { openedC = true; setMsg('數好了，按數字回答。', 'good'); afterAct(() => {}); } };
   function draw() {
     let acc = 0;
     document.getElementById('grid').innerHTML = Array.from({ length: rows }, (_, i) => {
@@ -604,10 +651,12 @@ function viewCandy(q) {
       const cls = (lit[i] ? 'lit ' : '') + (q.mode === 'more' && i === rows - 1 ? 'new' : q.mode === 'less' && i === rows - 1 ? 'gone' : '');
       return `<button data-r="${i}" style="padding:0">${candyRow(q.a, cls, lit[i] ? acc : '')}</button>`;
     }).join('');
-    document.querySelectorAll('[data-r]').forEach(b => b.onclick = () => { const i = +b.dataset.r; lit.fill(false); for (let j = 0; j <= i; j++) lit[j] = true; sfx.hop(); draw(); });
   }
+  const litTo = i => { i = Math.max(0, Math.min(rows - 1, i)); if (lit[i] && !lit[i + 1]) return; lit.fill(false); for (let j = 0; j <= i; j++) lit[j] = true; sfx.hop(); draw(); if (i === rows - 1) openC(); };
   draw();
-  setMsg(q.mode === 'count' && q.a > 1 ? nums(`點一排，可以 ${q.a} 個 ${q.a} 個數。`) : '');
+  dragOn(document.getElementById('grid'), (x, y) => litTo(Math.floor(y * rows)), 'self');
+  setMsg(q.mode === 'count' ? nums(`手指從上往下拖，${q.a} 個 ${q.a} 個數到最後一排。`) : nums(`手指往下拖到虛線那一排。`));
+  if (isFast(q)) openC();
   bindKeypad((val, clear) => {
     if (val === q.ans) { lockKeypad(); return finish(R.tries === 0 ? 2 : 1, q.mode, q.mode === 'count' ? nums(`對了！${q.b} 個 ${q.a} 是 ${q.ans}。`) : nums(`對了！${q.known} ${q.mode === 'more' ? '再多' : '再少'} ${q.a} 就是 ${q.ans}，不用重算。`)); }
     if (R.tries === 0) {
@@ -619,14 +668,15 @@ function viewCandy(q) {
   });
 }
 function viewCandySplit(q) {
-  frame(`${N(q.a + '×' + q.b)} 太大了？<br>點一排，從它下面切開，變成好算的兩塊！`, `<div class="grid" id="grid"></div><div class="trail" id="parts">還沒切</div>`, keypadHtml());
-  let cut = null;
+  frame(`${N(q.a + '×' + q.b)} 太大了？<br>點一排，從它下面切開，變成好算的兩塊！`, `<div class="grid" id="grid"></div><div class="trail" id="parts">還沒切</div>${padHidden()}`);
+  let cut = null, openedS = false;
+  if (isFast(q)) { openedS = true; afterAct(() => {}); }
   function draw() {
     document.getElementById('grid').innerHTML = Array.from({ length: q.b }, (_, i) => {
       const cls = (cut !== null && i >= cut ? 'part2 ' : '') + (cut === i + 1 ? 'cut' : '');
       return `<button style="padding:0" ${i < q.b - 1 ? `data-cut="${i + 1}"` : ''} aria-label="從第 ${i + 1} 排下面切開">${candyRow(q.a, cls)}</button>`;
     }).join('');
-    document.querySelectorAll('[data-cut]').forEach(b => b.onclick = () => { cut = +b.dataset.cut; sfx.hop(); draw(); });
+    document.querySelectorAll('[data-cut]').forEach(b => b.onclick = () => { cut = +b.dataset.cut; sfx.hop(); draw(); if (!openedS) { openedS = true; afterAct(() => {}); } });
     document.getElementById('parts').innerHTML = cut === null ? '還沒切' :
       nums(`${q.a}×${cut} 和 ${q.a}×${q.b - cut}`);
   }
@@ -643,8 +693,8 @@ const sweet = n => '<span class="c"></span>'.repeat(n);
 function viewCandyDeal(q) {
   const pack = q.mode === 'pack';
   frame(pack ? `${N(q.total)} 顆糖，每 ${N(q.a)} 顆裝 ${N(1)} 盒，<br>可以裝幾盒？` : `${N(q.total)} 顆糖，平分給 ${N(q.b)} 個人，<br>每人幾顆？`,
-    `<div class="pile-c" id="pile"></div><div class="boxes" id="boxes"></div><div class="trade"><button id="deal"></button></div>`, keypadHtml());
-  let left = q.total, rounds = 0;
+    `<div class="pile-c" id="pile"></div><div class="boxes" id="boxes"></div><div class="trade"><button id="deal"></button></div>${padHidden()}`);
+  let left = isFast(q) ? 0 : q.total, rounds = isFast(q) ? (pack ? q.b : q.a) : 0, openedD = false;
   function draw() {
     document.getElementById('pile').innerHTML = left ? sweet(left) : '<span class="note">分完了！</span>';
     const boxes = pack
@@ -654,9 +704,10 @@ function viewCandyDeal(q) {
     const d = document.getElementById('deal');
     d.textContent = pack ? '裝一盒' : '每人發一顆';
     d.style.display = left === 0 ? 'none' : '';
-    if (left === 0 && !R.tries) { setMsg('分完了！按數字回答。', 'good'); reveal('.keypad'); }
+    if (left === 0 && !openedD) { openedD = true; setMsg('分完了！按數字回答。', 'good'); afterAct(() => {}); }
   }
   document.getElementById('deal').onclick = () => { left -= pack ? q.a : q.b; rounds++; sfx.hop(); draw(); };
+  tapAlso('pile', 'deal');
   draw();
   bindKeypad((val, clear) => {
     if (val === q.ans) { lockKeypad(); return finish(R.tries === 0 ? 2 : 1, q.mode, nums(pack ? `對了！${q.a}×${q.b}＝${q.total}，可以裝 ${q.b} 盒。` : `對了！${q.a}×${q.b}＝${q.total}，每人 ${q.a} 顆。`)); }
@@ -694,7 +745,8 @@ function viewCandyFrac(q) {
     });
     return;
   }
-  frame('蛋糕平分好了，<br>紅色這一塊是幾分之一個？', `<div class="cake-wrap">${cakeSvg(q.n)}</div>`);
+  frame('蛋糕平分好了，<br>紅色這一塊是幾分之一個？', `<div class="cake-wrap">${cakeSvg(q.n)}</div><div class="trail" id="ct"></div>`);
+  gate(q, '數一數一共幾塊', 1, () => setEl('ct', nums(`一共 ${q.n} 塊`)), () => {
   document.getElementById('actions').innerHTML = `<div class="choices">${q.options.map(o => `<button class="choice" data-n="${o}">${fracHtml(o)}</button>`).join('')}</div>`;
   document.querySelectorAll('[data-n]').forEach(b => {
     b.onclick = () => {
@@ -702,6 +754,7 @@ function viewCandyFrac(q) {
       if (R.tries === 0) { R.tries = 1; b.classList.add('no'); b.disabled = true; sfx.retry(); return setMsg('數數看，一共平分成幾塊？', 'hint'); }
       finish(0, { ans: q.n, wrong: +b.dataset.n }, nums(`一共 ${q.n} 塊，1 塊是${Logic.fracWord(q.n)}個。`));
     };
+  });
   });
 }
 
@@ -717,7 +770,8 @@ function clockSvg(h, m) {
 }
 function viewClock(q) {
   if (q.mode === 'read') {
-    frame('大鐘停在這裡，<br>現在是幾時幾分？', `<div class="cake-wrap">${clockSvg(q.h, q.m)}</div>`);
+    frame('大鐘停在這裡，<br>現在是幾時幾分？', `<div class="cake-wrap">${clockSvg(q.h, q.m)}</div><div class="trail" id="ct"></div>`);
+    gate(q, ['先看短針', '再看長針'], 2, k => setEl('ct', nums(k === 1 ? (q.m ? `短針過了 ${q.h}` : `短針指著 ${q.h}`) : (q.m ? `短針過了 ${q.h}，長針走了 ${q.m} 小格` : `短針指著 ${q.h}，長針指著 12`))), () => {
     document.getElementById('actions').innerHTML = `<div class="choices col">${q.options.map(o => `<button class="choice" data-o="${o}" style="font-size:24px">${nums(o)}</button>`).join('')}</div>`;
     const ans = `${q.h} 時 ${q.m} 分`;
     document.querySelectorAll('[data-o]').forEach(b => {
@@ -727,11 +781,12 @@ function viewClock(q) {
         finish(0, { wrong: b.dataset.o, ans }, nums(`是 ${ans}。短針看幾時，長針看幾分。`));
       };
     });
+    });
     return;
   }
   const after = q.mode === 'after';
   frame(after ? `現在是 ${nums(`${q.sh} 時 ${q.sm} 分`)}，<br>再過 ${N(q.add)} 分鐘，把鐘撥好！` : `把大鐘撥到<br>${nums(`${q.h} 時 ${q.m} 分`)}`,
-    `<div class="cake-wrap">${clockSvg(after ? q.sh : 12, after ? q.sm : 0)}</div><div class="trail num" id="tm"></div>
+    `<div class="cake-wrap" id="ckw">${clockSvg(after ? q.sh : 12, after ? q.sm : 0)}</div><div class="trail num" id="tm"></div>
      <div class="hops"><button class="up" data-c="60">+1時</button><button class="up" data-c="5">+5分</button><button class="up" data-c="1">+1分</button><button class="dn" data-c="-60">−1時</button><button class="dn" data-c="-5">−5分</button><button class="dn" data-c="-1">−1分</button></div>`);
   let t = (after ? q.sh % 12 : 0) * 60 + (after ? q.sm : 0);
   const draw = () => {
@@ -743,6 +798,18 @@ function viewClock(q) {
   };
   draw();
   document.querySelectorAll('[data-c]').forEach(b => b.onclick = () => { t = (t + +b.dataset.c + 720) % 720; sfx.hop(); draw(); });
+  setMsg('手指撥動指針：撥外圈動長針，撥中間動短針。');
+  let hand = null;
+  dragOn(document.getElementById('ckw'), (x, y) => {
+    const dx = x - .5, dy = .5 - y, r = Math.hypot(dx, dy), a = (Math.atan2(dx, dy) * 180 / Math.PI + 360) % 360, h0 = Math.floor(t / 60), m0 = t % 60;
+    if (hand === null) hand = r < .27 ? 'h' : 'm';
+    if (hand === 'h') { const h = Math.round(a / 30) % 12; if (h !== h0) { t = h * 60 + m0; sfx.hop(); draw(); } return; }
+    const m = Math.round(a / 6) % 60; if (m === m0) return;
+    const wrap = m0 > 45 && m < 15 ? 1 : m0 < 15 && m > 45 ? -1 : 0;
+    t = ((h0 + wrap + 12) % 12) * 60 + m; draw();
+  });
+  const wrapCk = document.getElementById('ckw'), upCk = wrapCk.onpointerup;
+  wrapCk.onpointerup = e => { hand = null; upCk(e); };
   document.getElementById('actions').innerHTML = '<button class="btn" id="ok">撥好了</button>';
   document.getElementById('ok').onclick = () => {
     const [h, m] = draw();
@@ -779,12 +846,15 @@ function viewTrain(q) {
     ? [`先算：現在車上幾人？`, `到站${opText(q.ops[0])}，還有幾人？`]
     : ['第一站之後有幾人？', `第二站${opText(q.ops[1])}，現在幾人？`];
   let step = 0, pre = q.mode === 'mult' ? null : q.start;
-  frame(head, `<div class="seats" id="seats"></div><div class="trail" id="ask"></div>`, keypadHtml());
+  frame(head, `<div class="seats" id="seats"></div>${padHidden()}`);
   const draw = () => {
     document.getElementById('seats').innerHTML = pre === null ? `<div class="ride">${Array.from({ length: q.b }, () => peopleBlock(q.a, 'old')).join('<b class="plus gap"></b>')}</div><div class="legend"><span class="lg">${nums(`每節 ${q.a} 人，${q.b} 節`)}</span></div>` : seats(pre, q.mode === 'mult' ? q.ops[0] : q.ops[step]);
     document.getElementById('ask').innerHTML = nums(asks[step]).replace(/<span class="num"><span class="num">/g, '<span class="num">');
   };
-  draw();
+  document.getElementById('ask').innerHTML = '';
+  const cars = n => `<div class="ride">${Array.from({ length: n }, () => peopleBlock(q.a, 'old')).join('<b class="plus gap"></b>')}</div>`;
+  if (q.mode === 'mult') gate(q, '接上一節車廂', q.b, k => { setEl('seats', cars(k)); if (k === q.b) draw(); }, () => draw());
+  else { setEl('seats', seats(q.start)); gate(q, '開到第一站', 1, () => draw(), () => draw()); }
   bindKeypad((val, clear) => {
     if (val === q.steps[step]) {
       pre = val; R.tries = R.tries || 0; sfx.ok(); clear();
@@ -806,7 +876,13 @@ function coin(v, attrs) {
 }
 function viewShop(q) {
   if (q.mode === 'change') {
-    frame(`${q.item}要 ${N(q.price)} 元，<br>付 ${N(q.paid)} 元，找多少？`, `<div class="trail">${nums(`${q.price} 再加多少會變 100？`)}</div>`, keypadHtml());
+    frame(`${q.item}要 ${N(q.price)} 元，<br>付 ${N(q.paid)} 元，找多少？`, `<div class="trail">${nums(`從 ${q.price} 開始放錢，放到 ${q.paid} 元。`)}</div><div class="tray" id="tray"></div><div class="u-now num" id="sum"></div><div class="wallet" id="wl">${[50, 10, 5, 1].map(v => coin(v, `data-add="${v}"`)).join('')}</div>${padHidden()}`);
+    let now = q.price; const put = []; let openedP = false;
+    const drawP = () => { document.getElementById('tray').innerHTML = put.map((v, i) => coin(v, `data-rm="${i}"`)).join('') || '<span class="note">櫃檯是空的</span>'; document.getElementById('sum').textContent = `現在 ${now} 元`; document.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => { now -= put.splice(+b.dataset.rm, 1)[0]; sfx.hop(); drawP(); }); };
+    drawP();
+    const openP = () => { if (!openedP) { openedP = true; document.getElementById('wl').style.display = 'none'; document.getElementById('sum').style.display = 'none'; setMsg('放好了！一共放了多少？', 'good'); afterAct(() => {}); } };
+    document.querySelectorAll('[data-add]').forEach(b => b.onclick = () => { const v = +b.dataset.add; if (now + v > q.paid) { sfx.retry(); return setMsg('這樣太多了，換小一點的錢。', 'hint'); } now += v; put.push(v); sfx.hop(); setMsg(''); drawP(); if (now === q.paid) openP(); });
+    if (isFast(q)) openP();
     bindKeypad((val, clear) => {
       if (val === q.ans) { lockKeypad(); return finish(R.tries === 0 ? 2 : 1, 'change', nums(`對了！${q.price}＋${q.ans}＝100。`)); }
       if (R.tries === 0) { R.tries = 1; sfx.retry(); clear(); const up = Math.ceil(q.price / 10) * 10; return setMsg(nums(`${q.price} 先到 ${up}，再到 100。`), 'hint'); }
@@ -815,12 +891,16 @@ function viewShop(q) {
     return;
   }
   if (q.mode === 'enough') {
-    frame(`口袋有 ${N(q.budget)} 元，<br>${q.item} ${N(q.a)} 元、${q.other} ${N(q.b)} 元，夠不夠？`, `<div class="trail">不用算到最後，估一估就好</div>`);
-    document.getElementById('actions').innerHTML = '<div class="choices"><button class="choice" data-y="1">夠</button><button class="choice" data-y="0">不夠</button></div>';
-    document.querySelectorAll('[data-y]').forEach(b => b.onclick = () => {
-      if ((b.dataset.y === '1') === q.ans) return finish(R.tries === 0 ? 2 : 1, 'enough', nums(`${q.ans ? '夠' : '不夠'}！${q.why}`));
-      if (R.tries === 0) { R.tries = 1; b.classList.add('no'); b.disabled = true; sfx.retry(); return setMsg(nums(q.why), 'hint'); }
-    });
+    const nearU = x => Math.round(x / 10) * 10;
+    frame(`口袋有 ${N(q.budget)} 元，<br>${q.item} ${N(q.a)} 元、${q.other} ${N(q.b)} 元，夠不夠？`, `<div class="trail" id="ct">不用算到最後，估一估就好</div>`);
+    const ask = () => {
+      document.getElementById('actions').innerHTML = '<div class="choices"><button class="choice" data-y="1">夠</button><button class="choice" data-y="0">不夠</button></div>';
+      document.querySelectorAll('[data-y]').forEach(b => b.onclick = () => {
+        if ((b.dataset.y === '1') === q.ans) return finish(R.tries === 0 ? 2 : 1, 'enough', nums(`${q.ans ? '夠' : '不夠'}！${q.why}`));
+        if (R.tries === 0) { R.tries = 1; b.classList.add('no'); b.disabled = true; sfx.retry(); return setMsg(nums(q.why), 'hint'); }
+      });
+    };
+    gate(q, ['第一樣想成整十', '第二樣想成整十'], 2, k => setEl('ct', nums(k === 1 ? `${q.item} 大約 ${nearU(q.a)} 元` : `${q.item} 大約 ${nearU(q.a)} 元，${q.other} 大約 ${nearU(q.b)} 元`)), ask);
     return;
   }
   frame(`${q.item}要 ${N(q.price)} 元，<br>${q.strict ? '用最少的錢幣付！' : '把錢放上櫃檯。'}`, `<div class="tray" id="tray"></div><div class="trail num" id="sum"></div><div class="wallet">${q.coins.map(v => coin(v, `data-add="${v}"`)).join('')}</div>`);
@@ -956,7 +1036,7 @@ function viewParent() {
   </div>`;
   document.getElementById('snd').onchange = e => { S.sound = e.target.checked; save(); };
   document.getElementById('reset').onclick = () => {
-    if (confirm('確定清除所有星星和紀錄？')) { S.stars = 0; S.rec = {}; S.log = []; S.prog = {}; S.opened = false; S.bossDone = false; S.bossSeen = false; S.s2Seen = false; S.stamps = {}; save(); viewParent(); }
+    if (confirm('確定清除所有星星和紀錄？')) { S.stars = 0; S.rec = {}; S.log = []; S.prog = {}; S.opened = false; S.bossDone = false; S.bossSeen = false; S.s2Seen = false; S.stamps = {}; S.fast = {}; save(); viewParent(); }
   };
   document.getElementById('out').onclick = () => go('');
 }

@@ -384,3 +384,8 @@ body { line-height: 1.75; }
 .stop.right .plate .sem { margin-left: auto; }
 .pg-btn .sem { margin: 0 5px 0 0; }
 .top .sem { margin: 0; flex: none; }
+
+/* 動手操作 */
+[hidden] { display: none !important; }
+.drag-prot { touch-action: none; user-select: none; cursor: grab; }
+.u-now { text-align: center; font-size: 24px; }
