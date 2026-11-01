@@ -294,6 +294,66 @@ body.in-cine #app { padding: 0; max-width: none; }
 .plus.gap { margin: 0 2px; }
 .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; justify-content: center; margin-top: 6px; font-size: 17px; }
 .lg { display: inline-flex; align-items: center; gap: 5px; }
-.lg i { width: 13px; height: 13px; border-radius: 3px; background: var(--leaf); display: block; }
-.lg i.new { background: var(--warn); }
-.lg i.gone { background: transparent; box-shadow: inset 0 0 0 2px var(--warn); }
+.lg > i { width: 13px; height: 13px; border-radius: 3px; background: var(--leaf); display: block; }
+.lg > i.new { background: var(--warn); }
+.lg > i.gone { background: transparent; box-shadow: inset 0 0 0 2px var(--warn); }
+
+/* 注音 */
+body { line-height: 1.75; }
+.zc { display: inline-flex; align-items: center; white-space: nowrap; line-height: 1.2; vertical-align: middle; }
+.bp { position: relative; display: inline-flex; flex-direction: column; align-items: center; justify-content: center; width: 1.45em; padding-right: .45em; margin-left: .04em; font: 400 max(.44em, 9px)/1.02 "Microsoft JhengHei", "PingFang TC", "Noto Sans TC", system-ui, sans-serif; color: inherit; opacity: .92; letter-spacing: 0; -webkit-text-stroke: 0; text-shadow: none; }
+.bp span { display: block; }
+.bp .tone { position: absolute; right: 0; top: 50%; transform: translateY(-55%); font-style: normal; line-height: 1; }
+.bp .qing { display: block; font-style: normal; line-height: .5; }
+.parent .bp { display: none; }
+.ch { display: inline-flex; vertical-align: middle; }
+.pan-t { font-size: 17px; line-height: 1.2; text-align: center; color: var(--ink); white-space: nowrap; }
+.pan-t .bp { font-size: 8px; }
+.logo { font-size: 46px; letter-spacing: 0; -webkit-text-stroke: 1px #fff; }
+.logo.small { font-size: 27px; letter-spacing: 0; -webkit-text-stroke: .4px #fff; }
+.kicker { font-size: 21px; letter-spacing: 0; }
+.prompt, .say-row .prompt { font-size: 20px; line-height: 1.6; }
+.say-row .prompt .num, .prompt .num { font-size: 26px; }
+.msg { font-size: 19px; line-height: 1.7; }
+.plate b { font-size: 18px; line-height: 1.3; }
+.plate small { font-size: 15px; line-height: 1.35; }
+.stop { width: 80%; }
+.hero-say { font-size: 18px; }
+.dock button { font-size: 15px; min-height: 76px; }
+.dock small { font-size: 13px; }
+.cine .bubble { font-size: 21px; line-height: 1.7; min-height: 150px; }
+.bubble b { font-size: 18px; }
+.btn { font-size: 21px; }
+.btn.big { font-size: 25px; }
+.choice { font-size: 21px; }
+.trade button { font-size: 15px; }
+.legend { font-size: 16px; }
+.pg-btn { font-size: 17px; }
+.clue b { font-size: 18px; } .clue small { font-size: 15px; line-height: 1.5; }
+.col h3 { font-size: 18px; }
+.trail { font-size: 18px; }
+
+/* 注音字級：手機上也要看得清楚 */
+.bp { font-size: max(.46em, 10px); width: 1.35em; padding-right: .42em; margin-left: 0; opacity: 1; }
+.prompt, .say-row .prompt { font-size: 22px; }
+.msg { font-size: 20px; }
+.cine .bubble { font-size: 23px; }
+.plate b { font-size: 20px; }
+.plate small { font-size: 16px; }
+.stop { width: 84%; }
+.stop .plate { padding-left: 16px; }
+.hero-say { font-size: 19px; }
+.choice { font-size: 19px; padding-left: 2px; padding-right: 2px; }
+.dock button { font-size: 16px; padding: 3px 1px; min-height: 80px; }
+.dock button b { font-size: 18px; }
+.dock small { font-size: 12px; }
+.legend { font-size: 17px; }
+.trade button { font-size: 16px; }
+.pan-t { font-size: 19px; }
+.pan-t .bp { font-size: 9px; width: 1.2em; padding-right: .3em; }
+.title-note { font-size: 20px; }
+.kicker { font-size: 24px; }
+.logo { font-size: 50px; }
+.tag { font-size: 19px; }
+.say-who { width: 46px; height: 46px; }
+.dock #daily { font-size: 15px; }

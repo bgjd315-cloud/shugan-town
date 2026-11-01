@@ -63,6 +63,47 @@ function speak(text) {
   } catch (e) {}
 }
 
+/* ---------- 注音：直排在國字右邊，家長頁不加 ---------- */
+const HAN = /[\u4e00-\u9fff]/;
+function bp(r) {
+  let s = r || '', top = '', tone = '';
+  if (s[0] === '˙') { top = '<i class="qing">˙</i>'; s = s.slice(1); }
+  if (/[ˊˇˋ]$/.test(s)) { tone = `<i class="tone">${s.slice(-1)}</i>`; s = s.slice(0, -1); }
+  return `<span class="bp" aria-hidden="true">${top}${[...s].map(x => `<span>${x}</span>`).join('')}${tone}</span>`;
+}
+// 把文字切成一組一組：國字連同注音、緊跟的標點黏在一起，換行才不會讓標點跑到行首
+function zyGroups(text) {
+  const chars = [...text], rd = new Array(chars.length).fill(null);
+  for (let i = 0; i < chars.length; i++) {
+    if (rd[i] || !HAN.test(chars[i])) continue;
+    const hit = ZY_PHRASE.find(([w]) => chars.slice(i, i + [...w].length).join('') === w);
+    if (hit) {
+      let k = 0;
+      [...hit[0]].forEach((c, j) => { if (HAN.test(c)) rd[i + j] = hit[1][k++]; });
+    } else rd[i] = ZY_CHAR[chars[i]] || '';
+  }
+  const out = [];
+  chars.forEach((c, i) => {
+    if (HAN.test(c)) out.push(`<span class="zc">${c}${bp(rd[i])}</span>`);
+    else if (/[，。！？、：；）」⋯…]/.test(c) && out.length && out[out.length - 1].endsWith('</span>')) out[out.length - 1] = out[out.length - 1].replace(/<\/span>$/, esc(c) + '</span>');
+    else out.push(esc(c));
+  });
+  return out;
+}
+function annotate(root) {
+  const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT), nodes = [];
+  while (w.nextNode()) {
+    const n = w.currentNode, el = n.parentElement;
+    if (HAN.test(n.nodeValue) && !el.closest('.zc, .parent, text')) nodes.push(n);
+  }
+  nodes.forEach(n => {
+    const t = document.createElement('template');
+    t.innerHTML = zyGroups(n.nodeValue).join('');
+    n.replaceWith(t.content);
+  });
+}
+const plainText = el => { const c = el.cloneNode(true); c.querySelectorAll('.bp').forEach(b => b.remove()); return c.textContent; };
+
 /* ---------- 回合 ---------- */
 let R = null; // 目前這一回合
 function startRound(game, opts) {
@@ -114,7 +155,7 @@ function frame(promptHtml, stageHtml, extra) {
     ${extra || ''}
     <div class="actions" id="actions"></div>`;
   document.getElementById('home').onclick = () => { R = null; go(''); };
-  document.getElementById('say').onclick = () => speak(document.getElementById('prompt').textContent);
+  document.getElementById('say').onclick = () => speak(plainText(document.getElementById('prompt')));
 }
 function endRound() {
   const ch = R.chapter, boss = R.boss;
@@ -151,7 +192,7 @@ function endRound() {
 function typeInto(el, text) {
   // 一個字一個字出現；再按一次就全部顯示
   const reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
-  el.innerHTML = [...text].map(c => `<span class="${/\d/.test(c) ? 'num ' : ''}ch">${esc(c)}</span>`).join('');
+  el.innerHTML = zyGroups(text).map(g => `<span class="${/^\d$/.test(g) ? 'num ' : ''}ch">${g}</span>`).join('');
   const chars = [...el.children];
   let i = 0, timer = null;
   const finish = () => { clearInterval(timer); timer = null; chars.forEach(c => c.classList.add('on')); };
@@ -449,7 +490,7 @@ function viewFrog(q) {
 /* ---------- 神奇天平 ---------- */
 function scaleSvg(lText, rText, tilt) {
   const deg = tilt === 'L' ? -7 : tilt === 'R' ? 7 : 0;
-  const pan = (x, t) => `<path d="M${x} 66L${x - 58} 124M${x} 66L${x + 58} 124" stroke="#7d5bbe" stroke-width="2.5"/><path d="M${x - 70} 124h140a70 34 0 0 1-140 0z" fill="#e7def7" stroke="#7d5bbe" stroke-width="2.5"/><text x="${x}" y="147" class="num">${esc(t)}</text>`;
+  const pan = (x, t) => `<path d="M${x} 66L${x - 58} 124M${x} 66L${x + 58} 124" stroke="#7d5bbe" stroke-width="2.5"/><path d="M${x - 70} 124h140a70 34 0 0 1-140 0z" fill="#e7def7" stroke="#7d5bbe" stroke-width="2.5"/>${HAN.test(t) ? `<foreignObject x="${x - 68}" y="122" width="136" height="38"><div class="pan-t">${esc(t)}</div></foreignObject>` : `<text x="${x}" y="147" class="num">${esc(t)}</text>`}`;
   return `<svg class="scale-svg" viewBox="0 0 400 196"><path d="M200 66V180M150 186h100" stroke="#7d5bbe" stroke-width="8" stroke-linecap="round"/>
     <g class="beam" id="beam" style="transform:rotate(${deg}deg)"><path d="M90 66H310" stroke="#7d5bbe" stroke-width="7" stroke-linecap="round"/>${pan(90, lText)}${pan(310, rText)}</g></svg>`;
 }
@@ -789,8 +830,8 @@ function viewHome() {
   const allSaved = keys.every(saved), nSaved = keys.filter(saved).length;
   const nextKey = keys.find(k => !saved(k) && S.prog[k]) || keys.find(k => !saved(k));
   const line = S.bossDone ? '大霧散了！小鎮天天都在慶祝。' : allSaved ? '線索全都指向後山的山洞⋯⋯走吧！' : nSaved === 0 && !S.prog[nextKey] ? `隊長，先去救${STORY[nextKey].whoName}！` : `下一站：${STORY[nextKey].place}，${STORY[nextKey].mission}！`;
-  const ROW = 132, rows = keys.length + 1, pts = [];
-  for (let i = 0; i < rows; i++) pts.push([i % 2 ? 70 : 30, ROW * i + 62]);
+  const ROW = 150, rows = keys.length + 1, pts = [];
+  for (let i = 0; i < rows; i++) pts.push([i % 2 ? 70 : 30, ROW * i + 70]);
   const pathD = pts.map((q, i) => i === 0 ? `M${q[0]} ${q[1]}` : `C${pts[i - 1][0]} ${q[1] - 70} ${q[0]} ${pts[i - 1][1] + 70} ${q[0]} ${q[1]}`).join('');
   const stop = (k, i) => {
     const pr = Math.min(S.prog[k] || 0, ROUNDS_TO_SAVE), st = STORY[k], done = pr >= ROUNDS_TO_SAVE, now = k === nextKey && !done;
@@ -883,4 +924,5 @@ function route() {
   if (location.hash === '#parent') viewParent(); else if (!titleShown) viewTitle(); else viewHome();
 }
 window.addEventListener('hashchange', route);
+new MutationObserver(() => annotate($app)).observe($app, { childList: true, subtree: true });
 preloadArt().then(route);
