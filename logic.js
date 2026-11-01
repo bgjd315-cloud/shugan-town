@@ -21,10 +21,11 @@
     let v;
     do { v = ri(c.a + margin, c.b - margin); if (c.step > 1) v = Math.round(v / c.step) * c.step; }
     while (c.marks.includes(v));
-    const q = { kind: 'line', a: c.a, b: c.b, marks: c.marks, v, gold: span * 0.03, silver: span * 0.08, mode: 'place' };
+    const q = { kind: 'line', a: c.a, b: c.b, marks: c.marks, v, gold: span * 0.03, silver: span * 0.08, mode: 'place', steps: c.b - c.a >= 1000 ? [100, 10, 1] : [10, 1], labelAll: c.step > 1 && c.b <= 100 };
     if (lv >= 1 && Math.random() < 0.3) {
       q.mode = 'read';
-      const unit = span >= 200 ? 10 : 5;
+      const unit = span >= 1000 ? 100 : span >= 200 ? 10 : 5;
+      q.unit = unit;
       q.v = Math.max(c.a + unit, Math.min(c.b - unit, Math.round(v / unit) * unit));
       const gap = span * 0.2, opts = new Set([q.v]);
       let guard = 0;

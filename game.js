@@ -315,59 +315,92 @@ function lockKeypad() { document.querySelectorAll('.keypad button').forEach(b =>
 
 /* ---------- 尋寶數線 ---------- */
 const LX0 = 30, LX1 = 610;
-function viewLine(q) {
-  const X = v => LX0 + (v - q.a) / (q.b - q.a) * (LX1 - LX0);
-  const marks = q.marks.map(m => `<path d="M${X(m)} 92v22" stroke="#33405a" stroke-width="3"/><text x="${X(m)}" y="146" text-anchor="middle" font-size="27">${m}</text>`).join('');
-  const svg = `<div class="line-wrap" id="lw"><svg viewBox="0 0 640 160">
-    <path d="M${LX0} 103H${LX1}" stroke="#33405a" stroke-width="5" stroke-linecap="round"/>${marks}
-    <g id="truth"></g><g id="pin" style="display:none"></g></svg></div>`;
-  if (q.mode === 'read') {
-    frame('船長的旗子插在這裡，<br>大約是多少？', svg);
-    drawPin(X(q.v), '#d6476b', '');
-    document.getElementById('actions').innerHTML = `<div class="choices">${q.options.map(o => `<button class="choice num" data-o="${o}">${o}</button>`).join('')}</div>`;
-    document.querySelectorAll('.choice').forEach(b => {
-      b.onclick = () => {
-        const o = +b.dataset.o;
-        if (o === q.v) {
-          finish(R.tries === 0 ? 2 : R.tries === 1 ? 1 : 0, 'read', '對了！');
-          return;
-        }
-        R.tries++; b.classList.add('no'); b.disabled = true; sfx.retry();
-        setMsg(nums(`${o} 應該在${o > q.v ? '更右邊' : '更左邊'}。先看旗子比較靠近哪個標記。`), 'hint');
-      };
-    });
-    return;
+function lineSvg(a, b, s, labels) {
+  const X = v => LX0 + (v - a) / (b - a) * (LX1 - LX0);
+  let ticks = '';
+  for (let v = a; v <= b; v += s) {
+    const big = labels.includes(v) || v % (s * 5) === 0;
+    ticks += `<path d="M${X(v)} ${big ? 90 : 96}v${big ? 26 : 14}" stroke="#33405a" stroke-width="${big ? 3 : 2}"/>`;
   }
-  frame(`寶藏埋在 ${N(q.v)}！<br>點藏寶線，插上旗子。`, svg);
-  const wrap = document.getElementById('lw');
-  let px = null;
-  const setFrom = e => {
-    const r = wrap.getBoundingClientRect(), x = (e.clientX - r.left) / r.width * 640;
-    px = Math.max(LX0, Math.min(LX1, x));
-    drawPin(px, '#3b82c4', '');
-    const b = document.getElementById('dig'); if (b) b.disabled = false;
-  };
-  let active = true, down = false;
-  wrap.onpointerdown = e => { if (!active) return; down = true; setFrom(e); };
-  wrap.onpointermove = e => { if (active && down) setFrom(e); };
-  window.onpointerup = () => { down = false; };
-  document.getElementById('actions').innerHTML = `<button class="btn" id="dig" disabled>挖挖看</button>`;
-  document.getElementById('dig').onclick = () => {
-    const guess = Math.round(q.a + (px - LX0) / (LX1 - LX0) * (q.b - q.a));
-    const g = Logic.gradeLine(q, guess), d = Math.abs(guess - q.v);
-    if (g === 0 && R.tries === 0) {
-      R.tries = 1; sfx.retry();
-      const nearer = nearestMark(q);
-      setMsg(nums(`還差一段。${q.v} 比較靠近 ${nearer}，再移一次旗子。`), 'hint');
-      return;
-    }
-    active = false;
-    document.getElementById('pin').innerHTML = `<circle cx="${px}" cy="103" r="8" fill="#3b82c4"/>`; // 收起旗子，才看得到寶箱
-    drawTruth(X(q.v), q.v);
-    const dl = `<br>${nums(`你插在大約 ${guess}，差 ${d}。`)}`;
-    const grade = g === 2 && R.tries === 0 ? 2 : g === 0 ? 0 : 1;
-    finish(grade, { dist: Math.round(d / (q.b - q.a) * 100) }, g === 2 ? `挖到了！好準！${dl}` : g === 1 ? `很接近！${dl}` : `寶藏在這裡。${dl}`);
-  };
+  const size = labels.length > 6 ? 20 : 27;
+  const text = labels.map(m => `<text x="${X(m)}" y="146" text-anchor="middle" font-size="${size}">${m}</text>`).join('');
+  return `<div class="line-wrap" id="lw"><svg viewBox="0 0 640 160"><g id="seg"></g>
+    <path d="M${LX0} 103H${LX1}" stroke="#33405a" stroke-width="5" stroke-linecap="round"/>${ticks}${text}
+    <g id="truth"></g><g id="pin" style="display:none"></g></svg></div>`;
+}
+function viewLine(q) {
+  if (q.mode === 'read') return viewLineRead(q);
+  let st = { a: q.a, b: q.b, s: q.steps[0], first: true }, stageWrong = 0;
+  const X = v => LX0 + (v - st.a) / (st.b - st.a) * (LX1 - LX0);
+  function labels() {
+    if (!st.first) return [st.a, (st.a + st.b) / 2, st.b];
+    if (!q.labelAll) return q.marks;
+    const out = []; for (let v = q.a; v <= q.b; v += st.s) out.push(v); return out;
+  }
+  function stage() {
+    const exact = q.v % st.s === 0;
+    const prompt = exact ? `寶藏埋在 ${N(q.v)}！<br>點 ${N(q.v)} 的刻度，插上旗子。`
+      : `寶藏埋在 ${N(q.v)}！<br>${st.first ? '它在哪一段？點那一段。' : '它在這一段裡，再找一找。'}`;
+    frame(prompt, lineSvg(st.a, st.b, st.s, labels()) + (st.first ? '' : `<div class="trail">${nums(`放大鏡：${st.a} 到 ${st.b}，一小格是 ${st.s}`)}</div>`));
+    const wrap = document.getElementById('lw');
+    let pick = null, active = true, down = false;
+    const setFrom = e => {
+      const r = wrap.getBoundingClientRect(), x = (e.clientX - r.left) / r.width * 640;
+      const raw = st.a + (Math.max(LX0, Math.min(LX1, x)) - LX0) / (LX1 - LX0) * (st.b - st.a);
+      if (exact) { pick = st.a + Math.round((raw - st.a) / st.s) * st.s; drawPin(X(pick), '#3b82c4'); }
+      else {
+        pick = Math.min(st.a + Math.floor((raw - st.a) / st.s) * st.s, st.b - st.s);
+        document.getElementById('seg').innerHTML = `<rect x="${X(pick)}" y="78" width="${X(pick + st.s) - X(pick)}" height="50" rx="3" fill="#ffd65a"/>`;
+      }
+      document.getElementById('dig').disabled = false;
+    };
+    wrap.onpointerdown = e => { if (active) { down = true; setFrom(e); } };
+    wrap.onpointermove = e => { if (active && down) setFrom(e); };
+    window.onpointerup = () => { down = false; };
+    const acts = document.getElementById('actions');
+    acts.innerHTML = `<button class="btn" id="dig" disabled>${exact ? '挖挖看' : '放大看看'}</button>`;
+    const zoom = () => { const a = Math.floor(q.v / st.s) * st.s; st = { a, b: a + st.s, s: st.s / 10, first: false }; stageWrong = 0; stage(); };
+    document.getElementById('dig').onclick = () => {
+      const right = exact ? pick === q.v : pick === Math.floor(q.v / st.s) * st.s;
+      if (right) {
+        if (!exact) { sfx.ok(); return zoom(); }
+        active = false;
+        document.getElementById('pin').innerHTML = `<circle cx="${X(q.v)}" cy="103" r="8" fill="#3b82c4"/>`;
+        drawTruth(X(q.v), q.v);
+        return finish(R.tries === 0 ? 2 : R.tries === 1 ? 1 : 0, 'place', nums(`挖到了！就是 ${q.v}！`));
+      }
+      R.tries++; stageWrong++; sfx.retry();
+      const hint = exact ? nums(`你插在 ${pick}，${q.v} 比它${q.v > pick ? '大，再往右' : '小，再往左'}。一小格是 ${st.s}。`)
+        : nums(`這一段是 ${pick} 到 ${pick + st.s}。${q.v} 比 ${q.v > pick ? pick + st.s : pick} ${q.v > pick ? '大，再往右' : '小，再往左'}。`);
+      if (stageWrong < 2) return setMsg(hint, 'hint');
+      active = false;
+      if (exact) {
+        document.getElementById('pin').innerHTML = `<circle cx="${X(pick)}" cy="103" r="8" fill="#3b82c4"/>`;
+        drawTruth(X(q.v), q.v);
+        return finish(0, { wrong: pick, ans: q.v }, nums(`寶藏在這裡：${q.v}。`));
+      }
+      const a = Math.floor(q.v / st.s) * st.s;
+      document.getElementById('seg').innerHTML = `<rect x="${X(a)}" y="78" width="${X(a + st.s) - X(a)}" height="50" rx="3" fill="#ffd65a"/>`;
+      setMsg(nums(`${q.v} 在 ${a} 到 ${a + st.s} 這一段。`), 'hint');
+      acts.innerHTML = '<button class="btn" id="dig">放大看看</button>';
+      document.getElementById('dig').onclick = zoom;
+    };
+  }
+  stage();
+}
+function viewLineRead(q) {
+  const X = v => LX0 + (v - q.a) / (q.b - q.a) * (LX1 - LX0);
+  frame(`船長的旗子插在這裡，<br>是多少？一小格是 ${N(q.unit)}。`, lineSvg(q.a, q.b, q.unit, q.marks));
+  drawPin(X(q.v), '#d6476b');
+  document.getElementById('actions').innerHTML = `<div class="choices">${q.options.map(o => `<button class="choice num" data-o="${o}">${o}</button>`).join('')}</div>`;
+  document.querySelectorAll('.choice').forEach(b => {
+    b.onclick = () => {
+      const o = +b.dataset.o;
+      if (o === q.v) return finish(R.tries === 0 ? 2 : R.tries === 1 ? 1 : 0, 'read', nums(`對了！就是 ${q.v}。`));
+      R.tries++; b.classList.add('no'); b.disabled = true; sfx.retry();
+      setMsg(nums(`${o} 應該在${o > q.v ? '更右邊' : '更左邊'}。從最近的標記開始，一格一格數。`), 'hint');
+    };
+  });
 }
 function nearestMark(q) {
   return q.marks.reduce((a, b) => Math.abs(b - q.v) < Math.abs(a - q.v) ? b : a);
